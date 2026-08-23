@@ -1,4 +1,5 @@
-export async function registerUser(env: { DB: D1Database }, email: string, passwordHash: string) {
+// @ts-ignore
+export async function registerUser(env, email: string, passwordHash: string) {
   const result = await env.DB.prepare(
     "INSERT INTO users (email, password) VALUES (?, ?)"
   )
@@ -7,7 +8,8 @@ export async function registerUser(env: { DB: D1Database }, email: string, passw
   return result;
 }
 
-export async function getUserByEmail(env: { DB: D1Database }, email: string) {
+// @ts-ignore
+export async function getUserByEmail(env, email: string) {
   const user = await env.DB.prepare(
     "SELECT * FROM users WHERE email = ?"
   )
