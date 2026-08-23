@@ -1,4 +1,4 @@
-export async function registerUser(env: Env, email: string, passwordHash: string) {
+export async function registerUser(env: { DB: D1Database }, email: string, passwordHash: string) {
   const result = await env.DB.prepare(
     "INSERT INTO users (email, password) VALUES (?, ?)"
   )
@@ -7,7 +7,7 @@ export async function registerUser(env: Env, email: string, passwordHash: string
   return result;
 }
 
-export async function getUserByEmail(env: Env, email: string) {
+export async function getUserByEmail(env: { DB: D1Database }, email: string) {
   const user = await env.DB.prepare(
     "SELECT * FROM users WHERE email = ?"
   )
