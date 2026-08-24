@@ -23,10 +23,11 @@ npm run dev
 
 ## Cloudflare deployment
 
-This repository commits `bun.lock` because the Cloudflare build environment runs
-`bun install --frozen-lockfile`. After changing `package.json`, regenerate and
-commit the lockfile with `bun install` before deploying. Confirm the Cloudflare
-deployment is building the latest `main` commit, not an older failed deployment.
+This repository uses npm and commits `package-lock.json` so Cloudflare can
+reproduce dependencies with `npm ci`. After changing `package.json`, regenerate
+and commit the lockfile with `npm install` before deploying. Confirm the
+Cloudflare deployment is building the latest `main` commit, not an older failed
+deployment.
 
 The Worker requires the `DB` D1 binding from `wrangler.jsonc`. Google OAuth also
 requires the server-only `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and exact
