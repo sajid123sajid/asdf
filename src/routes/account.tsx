@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { LogIn, MapPin, Settings, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { authenticate } from "../auth";
 
 export const Route = createFileRoute("/account")({
   head: () => ({
@@ -26,17 +27,22 @@ function AccountPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
 
-  const handleAuth = async (e: React.FormEvent) => {
+ const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
-      // ডাটা সাবমিট হবে
-      toast.success("Account processed successfully!");
+      const result = await authenticate({ data: { email, password } });
+      toast.success(
+        result.status === "signed_up"
+          ? "Account created! Welcome to Zupona."
+          : "Signed in successfully!"
+      );
       setIsModalOpen(false);
       setEmail("");
       setPassword("");
+      window.location.reload();
     } catch (err) {
-      toast.error("Something went wrong!");
+      toast.error("Wrong email or password");
     } finally {
       setLoading(false);
     }
