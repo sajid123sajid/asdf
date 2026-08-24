@@ -63,7 +63,7 @@ export const Route = createFileRoute("/admin")({
   component: AdminPage,
 });
 
-type TabType = "catalog" | "new" | "orders" | "tools";
+type TabType = "catalog" | "new" | "orders" | "settings" | "tools";
 
 export function AdminPage() {
   const {
@@ -143,18 +143,18 @@ export function AdminPage() {
         setOrders(savedOrders);
         setSiteSettings(settings ?? {});
         setSettingsDraft({
-          store_name: typeof settings?.store_name === "string" ? settings.store_name : "Zupona",
+          store_name: typeof settings?.["store_name"] === "string" ? settings["store_name"] : "Zupona",
           announcement:
-            typeof settings?.announcement === "string"
-              ? settings.announcement
+            typeof settings?.["announcement"] === "string"
+              ? settings["announcement"]
               : "Free shipping on orders over Tk 1,500.",
           home_title:
-            typeof settings?.home_title === "string"
-              ? settings.home_title
+            typeof settings?.["home_title"] === "string"
+              ? settings["home_title"]
               : "Better essentials, delivered faster.",
           home_subtitle:
-            typeof settings?.home_subtitle === "string"
-              ? settings.home_subtitle
+            typeof settings?.["home_subtitle"] === "string"
+              ? settings["home_subtitle"]
               : "Premium products curated for daily life and smart living.",
         });
         setAdminState("ready");
@@ -354,7 +354,7 @@ export function AdminPage() {
       topPick: form.topPick,
     };
 
-    const detailPayload: Partial<ProductDetail> = {
+    const detailPayload: ProductDetail = {
       images: form.galleryImages.length > 0 ? form.galleryImages : [productPayload.image],
       description: form.description || `${productPayload.brand} ${productPayload.name}`,
       features: form.features,
@@ -519,25 +519,25 @@ export function AdminPage() {
               const detail = record.detail;
               if (!product.name || !product.category) throw new Error("Each product needs a name and category.");
               return {
-                id: product.id,
+                ...(product.id ? { id: product.id } : {}),
                 name: product.name,
-                slug: product.slug,
-                brand: product.brand,
+                ...(product.slug ? { slug: product.slug } : {}),
+                ...(product.brand ? { brand: product.brand } : {}),
                 category: product.category,
                 price: product.price ?? 0,
-                oldPrice: product.oldPrice,
-                stock: product.stock,
-                rating: product.rating,
-                reviews: product.reviews,
-                bestSelling: product.bestSelling,
-                topPick: product.topPick,
-                image: product.image,
-                description: detail?.description,
-                features: detail?.features,
-                specs: detail?.specs,
-                variants: detail?.variants,
-                variantLabel: detail?.variantLabel,
-                galleryImages: detail?.images,
+                ...(product.oldPrice !== undefined ? { oldPrice: product.oldPrice } : {}),
+                ...(product.stock !== undefined ? { stock: product.stock } : {}),
+                ...(product.rating !== undefined ? { rating: product.rating } : {}),
+                ...(product.reviews !== undefined ? { reviews: product.reviews } : {}),
+                ...(product.bestSelling !== undefined ? { bestSelling: product.bestSelling } : {}),
+                ...(product.topPick !== undefined ? { topPick: product.topPick } : {}),
+                ...(product.image ? { image: product.image } : {}),
+                ...(detail?.description !== undefined ? { description: detail.description } : {}),
+                ...(detail?.features !== undefined ? { features: detail.features } : {}),
+                ...(detail?.specs !== undefined ? { specs: detail.specs } : {}),
+                ...(detail?.variants !== undefined ? { variants: detail.variants } : {}),
+                ...(detail?.variantLabel !== undefined ? { variantLabel: detail.variantLabel } : {}),
+                ...(detail?.images !== undefined ? { galleryImages: detail.images } : {}),
               };
             }),
           },

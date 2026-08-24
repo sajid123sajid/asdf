@@ -40,7 +40,7 @@ export interface SafeUser {
   created_at?: string;
 }
 
-const ADMIN_ROLES = new Set<UserRole>(["owner", "manager", "staff"]);
+const ADMIN_ROLES = new Set<UserRole>(["owner"]);
 const DEFAULT_ADMIN_EMAILS = new Set(["sajedaakter361@gmail.com"]);
 
 async function loadCookieHelpers() {
@@ -119,17 +119,19 @@ async function fetchGoogleUserInfo(accessToken: string) {
 }
 
 function configuredRoleFor(email: string): UserRole {
+  return getConfiguredAdminEmails().has(email.toLowerCase()) ? "owner" : "customer";
+}
+
+function getConfiguredAdminEmails() {
   const env = (globalThis as { __CLOUDFLARE_ENV__?: { ADMIN_EMAILS?: unknown } }).__CLOUDFLARE_ENV__;
   const configuredEmails = typeof env?.ADMIN_EMAILS === "string" ? env.ADMIN_EMAILS : "";
-  const allowedEmails = new Set(
+  return new Set(
     configuredEmails
       .split(",")
       .map((value) => value.trim().toLowerCase())
       .filter(Boolean)
       .concat([...DEFAULT_ADMIN_EMAILS])
   );
-
-  return allowedEmails.has(email.toLowerCase()) ? "owner" : "customer";
 }
 
 function toSafeUser(user: UserRecord): SafeUser {
@@ -324,7 +326,9 @@ export async function requireAdminUser(): Promise<SafeUser> {
   const user = sessionId ? await getUserBySession(sessionId) : null;
   if (!user) throw new Error("Sign in with an administrator account to continue.");
   const safeUser = toSafeUser(user);
-  if (!ADMIN_ROLES.has(safeUser.role)) throw new Error("You do not have permission to access Zupona admin.");
+  if (!ADMIN_ROLES.has(safeUser.role) || !getConfiguredAdminEmails().has(safeUser.email.toLowerCase())) {
+    throw new Error("Only the configured Zupona owner can access the admin dashboard.");
+  }
   return safeUser;
 }
 
