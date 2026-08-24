@@ -23,6 +23,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   authenticate,
+  getGoogleAuthUrl,
   getCurrentUser,
   getUserOrders,
   logout,
@@ -133,6 +134,15 @@ function AccountPage() {
       await router.invalidate();
     } catch {
       toast.error("Logout failed. Please try again.");
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    try {
+      const url = await getGoogleAuthUrl();
+      window.location.href = url;
+    } catch (error: any) {
+      toast.error(error?.message || "Google sign-in is not available yet.");
     }
   };
 
@@ -468,6 +478,25 @@ function AccountPage() {
             </button>
           </div>
 
+          {/* Store Admin Portal Link */}
+          <div className="flex flex-col items-start justify-between gap-3 rounded-2xl border border-gold/30 bg-gold/5 p-4 sm:flex-row sm:items-center">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gold text-primary-foreground font-bold shadow-sm">
+                ⚡
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-foreground">Zupona Store &amp; Catalog Manager</h3>
+                <p className="text-xs text-muted-foreground">Add new products, edit pricing &amp; stock, or view live customer orders.</p>
+              </div>
+            </div>
+            <Link
+              to="/admin"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-gold px-4 py-2 text-xs font-bold text-primary-foreground hover:bg-gold-deep shadow-xs"
+            >
+              Open Admin Dashboard
+            </Link>
+          </div>
+
           {/* Value Props */}
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="rounded-xl border border-border bg-card p-4 text-center">
@@ -542,6 +571,24 @@ function AccountPage() {
             </p>
 
             <form onSubmit={handleAuth} className="space-y-3.5">
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary"
+              >
+                <span className="text-base">G</span>
+                Continue with Google
+              </button>
+
+              <div className="relative my-2">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-border" />
+                </div>
+                <div className="relative flex justify-center text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                  <span className="bg-card px-2">or</span>
+                </div>
+              </div>
+
               {authMode === "signup" && (
                 <div>
                   <label className="block text-xs font-medium text-muted-foreground mb-1">

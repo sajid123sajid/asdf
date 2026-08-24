@@ -1,4 +1,4 @@
-import { createFileRoute, Link, notFound, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import {
   ArrowLeft,
@@ -24,8 +24,7 @@ import {
   formatTk,
   frequentlyBoughtWith,
   getCategory,
-  getProduct,
-  getProductDetail,
+  getProduct as lookupProduct,
   relatedProducts,
 } from "@/components/zupona/data";
 import { useShop } from "@/components/zupona/shop-store";
@@ -33,8 +32,8 @@ import { usePartialHideOnScroll } from "@/hooks/use-scroll-direction";
 
 export const Route = createFileRoute("/product/$slug")({
   loader: ({ params }) => {
-    const product = getProduct(params.slug);
-    if (!product) throw notFound();
+    const product = lookupProduct(params.slug);
+    if (!product) return { title: "Zupona Product", price: 0 };
     return { title: `${product.brand} ${product.name}`, price: product.price };
   },
   head: ({ loaderData }) => {
@@ -66,12 +65,20 @@ function ProductNotFound() {
       <p className="mt-2 text-sm text-muted-foreground">
         This product may have been removed or is no longer available.
       </p>
-      <Link
-        to="/"
-        className="mt-5 rounded-full bg-gold px-5 py-2.5 text-sm font-bold text-primary-foreground hover:bg-gold-deep"
-      >
-        Continue Shopping
-      </Link>
+      <div className="mt-5 flex gap-3">
+        <Link
+          to="/"
+          className="rounded-full bg-gold px-5 py-2.5 text-sm font-bold text-primary-foreground hover:bg-gold-deep"
+        >
+          Continue Shopping
+        </Link>
+        <Link
+          to="/admin"
+          className="rounded-full border border-border bg-card px-5 py-2.5 text-sm font-semibold text-foreground hover:bg-secondary"
+        >
+          Manage Catalog
+        </Link>
+      </div>
     </main>
   );
 }
@@ -85,9 +92,19 @@ const trust = [
 
 function ProductPage() {
   const { slug } = Route.useParams();
-  const product = getProduct(slug);
   const navigate = useNavigate();
-  const { addToCart, toggleWishlist, isWishlisted, cartCount, openCart } = useShop();
+  const {
+    products,
+    getProduct,
+    getProductDetail,
+    addToCart,
+    toggleWishlist,
+    isWishlisted,
+    cartCount,
+    openCart,
+  } = useShop();
+
+  const product = getProduct(slug);
   const [qty, setQtyState] = useState(1);
   const [variant, setVariant] = useState<string | null>(null);
   const [added, setAdded] = useState(false);
@@ -98,8 +115,8 @@ function ProductPage() {
   const detail = getProductDetail(product);
   const category = getCategory(product.category);
   const wished = isWishlisted(product.slug);
-  const related = relatedProducts(product);
-  const alsoBought = frequentlyBoughtWith(product);
+  const related = relatedProducts(product, products);
+  const alsoBought = frequentlyBoughtWith(product, products);
   const inStock = detail.stock > 0;
   const lowStock = inStock && detail.stock <= 5;
   const maxQty = Math.max(1, detail.stock);
@@ -235,21 +252,21 @@ function ProductPage() {
             {/* Stock */}
             <p className="mt-2 text-xs font-semibold">
               {!inStock ? (
-                <span className="text-sale">Currently unavailable</span>
+                <span className="text-sale">Currently unavailable (Out of stock)</span>
               ) : lowStock ? (
-                <span className="text-sale">Only {detail.stock} left</span>
+                <span className="text-sale">Only {detail.stock} left in stock - order soon</span>
               ) : (
-                <span className="text-emerald-600">In stock</span>
+                <span className="text-emerald-600">In stock ({detail.stock} available)</span>
               )}
             </p>
 
             {/* Delivery */}
             <div className="mt-3 space-y-1 rounded-xl border border-border bg-card px-3 py-2.5 text-xs">
               <p className="flex items-center gap-1.5 font-semibold text-foreground">
-                <Zap className="h-4 w-4 fill-gold text-gold" /> Delivery in 60 minutes
+                <Zap className="h-4 w-4 fill-gold text-gold" /> Delivery in 60 minutes in Dhaka
               </p>
               <p className="flex items-center gap-1.5 text-muted-foreground">
-                <MapPin className="h-4 w-4 text-gold" /> Delivering to Dhaka, Bangladesh
+                <MapPin className="h-4 w-4 text-gold" /> Delivering across all 64 districts in Bangladesh
               </p>
               <p className="flex items-center gap-1.5 text-muted-foreground">
                 <Banknote className="h-4 w-4 text-gold" /> Cash on delivery available
@@ -428,7 +445,7 @@ function ProductPage() {
         )}
       </div>
 
-      {/* Sticky mobile purchase bar — moves with the bottom UI group on scroll */}
+      {/* Sticky mobile purchase bar */}
       <div
         className="fixed bottom-[4.5rem] left-0 right-0 z-40 px-3 transition-transform duration-[280ms] ease-in-out md:hidden"
         style={{ transform: `translateY(${bottomOffset}px)` }}

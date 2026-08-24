@@ -1,0 +1,7 @@
+# Server-only Google OAuth credentials. Never use VITE_ prefixes for these values.
+GOOGLE_CLIENT_ID=your-web-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+GOOGLE_REDIRECT_URI=http://localhost:5173/google-callback
+
+# Optional comma-separated admin emails.
+# ADMIN_EMAILS=admin@example.com

@@ -8,10 +8,8 @@ import { CategoryStrip } from "@/components/zupona/CategoryStrip";
 import { DealStrip } from "@/components/zupona/DealStrip";
 import { ProductCard } from "@/components/zupona/ProductCard";
 import { ProductRail } from "@/components/zupona/ProductRail";
-import { bestSelling, deals, products, topPicks } from "@/components/zupona/data";
+import { useShop } from "@/components/zupona/shop-store";
 import { useFlashDeal } from "@/hooks/use-flash-deal";
-
-
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -35,13 +33,12 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-
 function Index() {
   const { expired, ready } = useFlashDeal();
   const dealsOver = ready && expired;
+  const { products, bestSelling, topPicks, deals } = useShop();
 
   return (
-
     <>
       <main className="mx-auto max-w-[1200px] px-3 sm:px-4">
         {/* Hero */}
@@ -110,9 +107,6 @@ function Index() {
           />
         )}
 
-
-
-
         {/* Best Selling */}
         <section aria-labelledby="best-selling" className="relative mt-4 rounded-2xl bg-card px-2 py-3 sm:mt-8 sm:px-4 sm:py-5">
           <div className="mb-2 flex items-center justify-between sm:mb-4">
@@ -128,8 +122,8 @@ function Index() {
             </Link>
           </div>
           <ul className="grid grid-cols-2 items-stretch gap-2 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
-            {bestSelling.map((p) => (
-              <li key={p.brand} className="h-full">
+            {(bestSelling.length > 0 ? bestSelling : products.slice(0, 4)).map((p) => (
+              <li key={p.id} className="h-full">
                 <ProductCard product={p} />
               </li>
             ))}
@@ -143,22 +137,22 @@ function Index() {
           </button>
         </section>
 
-        <ProductRail id="top-picks" title="Top Picks For You" products={topPicks} viewAllTo="/categories" />
+        <ProductRail
+          id="top-picks"
+          title="Top Picks For You"
+          products={topPicks.length > 0 ? topPicks : products.slice(0, 8)}
+          viewAllTo="/categories"
+        />
 
         <BrandStrip />
 
         <ProductRail
           id="new-arrivals"
           title="New Arrivals"
-          products={products.slice(-8)}
+          products={products.slice(0, 8)}
           viewAllTo="/categories"
         />
-
-
-
       </main>
-
     </>
-
   );
 }

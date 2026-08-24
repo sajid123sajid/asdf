@@ -2,7 +2,8 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { ProductCard } from "@/components/zupona/ProductCard";
-import { getCategory, productsByCategory } from "@/components/zupona/data";
+import { getCategory } from "@/components/zupona/data";
+import { useShop } from "@/components/zupona/shop-store";
 
 export const Route = createFileRoute("/category/$slug")({
   loader: ({ params }) => {
@@ -43,8 +44,11 @@ function CategoryPage() {
   const { slug } = Route.useParams();
   const { name } = Route.useLoaderData();
   const [sort, setSort] = useState<Sort>("popular");
+  const { products } = useShop();
 
-  const items = [...productsByCategory(slug)].sort((a, b) => {
+  const categoryProducts = products.filter((p) => p.category === slug);
+
+  const items = [...categoryProducts].sort((a, b) => {
     if (sort === "price-asc") return a.price - b.price;
     if (sort === "price-desc") return b.price - a.price;
     if (sort === "discount") return b.discount - a.discount;
@@ -86,13 +90,26 @@ function CategoryPage() {
         </label>
       </div>
 
-      <ul className="mt-5 grid grid-cols-2 items-stretch gap-2 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
-        {items.map((p) => (
-          <li key={p.id} className="h-full">
-            <ProductCard product={p} />
-          </li>
-        ))}
-      </ul>
+      {items.length === 0 ? (
+        <div className="mt-8 rounded-xl border border-border bg-card p-12 text-center">
+          <p className="text-base font-semibold text-foreground">No products in this category yet</p>
+          <p className="mt-1 text-xs text-muted-foreground">Products added in this category will appear here instantly.</p>
+          <Link
+            to="/admin"
+            className="mt-4 inline-flex items-center rounded-md bg-gold px-4 py-2 text-xs font-bold text-primary-foreground hover:bg-gold-deep"
+          >
+            Add Products in Admin
+          </Link>
+        </div>
+      ) : (
+        <ul className="mt-5 grid grid-cols-2 items-stretch gap-2 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
+          {items.map((p) => (
+            <li key={p.id} className="h-full">
+              <ProductCard product={p} />
+            </li>
+          ))}
+        </ul>
+      )}
     </main>
   );
 }

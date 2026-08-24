@@ -11,10 +11,12 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AccountRouteImport } from './routes/account'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as CartRouteImport } from './routes/cart'
 import { Route as CategoriesRouteImport } from './routes/categories'
 import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as DealsRouteImport } from './routes/deals'
+import { Route as GoogleCallbackRouteImport } from './routes/google-callback'
 import { Route as HelpRouteImport } from './routes/help'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as SellRouteImport } from './routes/sell'
@@ -31,6 +33,11 @@ const IndexRoute = IndexRouteImport.update({
 const AccountRoute = AccountRouteImport.update({
   id: '/account',
   path: '/account',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CartRoute = CartRouteImport.update({
@@ -51,6 +58,11 @@ const CheckoutRoute = CheckoutRouteImport.update({
 const DealsRoute = DealsRouteImport.update({
   id: '/deals',
   path: '/deals',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GoogleCallbackRoute = GoogleCallbackRouteImport.update({
+  id: '/google-callback',
+  path: '/google-callback',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HelpRoute = HelpRouteImport.update({
@@ -92,10 +104,12 @@ const ProductSlugRoute = ProductSlugRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
+  '/admin': typeof AdminRoute
   '/cart': typeof CartRoute
   '/categories': typeof CategoriesRoute
   '/checkout': typeof CheckoutRoute
   '/deals': typeof DealsRoute
+  '/google-callback': typeof GoogleCallbackRoute
   '/help': typeof HelpRoute
   '/search': typeof SearchRoute
   '/sell': typeof SellRoute
@@ -107,10 +121,12 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
+  '/admin': typeof AdminRoute
   '/cart': typeof CartRoute
   '/categories': typeof CategoriesRoute
   '/checkout': typeof CheckoutRoute
   '/deals': typeof DealsRoute
+  '/google-callback': typeof GoogleCallbackRoute
   '/help': typeof HelpRoute
   '/search': typeof SearchRoute
   '/sell': typeof SellRoute
@@ -123,10 +139,12 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
+  '/admin': typeof AdminRoute
   '/cart': typeof CartRoute
   '/categories': typeof CategoriesRoute
   '/checkout': typeof CheckoutRoute
   '/deals': typeof DealsRoute
+  '/google-callback': typeof GoogleCallbackRoute
   '/help': typeof HelpRoute
   '/search': typeof SearchRoute
   '/sell': typeof SellRoute
@@ -140,10 +158,12 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/account'
+    | '/admin'
     | '/cart'
     | '/categories'
     | '/checkout'
     | '/deals'
+    | '/google-callback'
     | '/help'
     | '/search'
     | '/sell'
@@ -155,10 +175,12 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/account'
+    | '/admin'
     | '/cart'
     | '/categories'
     | '/checkout'
     | '/deals'
+    | '/google-callback'
     | '/help'
     | '/search'
     | '/sell'
@@ -170,10 +192,12 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/account'
+    | '/admin'
     | '/cart'
     | '/categories'
     | '/checkout'
     | '/deals'
+    | '/google-callback'
     | '/help'
     | '/search'
     | '/sell'
@@ -186,10 +210,12 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccountRoute: typeof AccountRoute
+  AdminRoute: typeof AdminRoute
   CartRoute: typeof CartRoute
   CategoriesRoute: typeof CategoriesRoute
   CheckoutRoute: typeof CheckoutRoute
   DealsRoute: typeof DealsRoute
+  GoogleCallbackRoute: typeof GoogleCallbackRoute
   HelpRoute: typeof HelpRoute
   SearchRoute: typeof SearchRoute
   SellRoute: typeof SellRoute
@@ -213,6 +239,13 @@ declare module '@tanstack/react-router' {
       path: '/account'
       fullPath: '/account'
       preLoaderRoute: typeof AccountRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cart': {
@@ -241,6 +274,13 @@ declare module '@tanstack/react-router' {
       path: '/deals'
       fullPath: '/deals'
       preLoaderRoute: typeof DealsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/google-callback': {
+      id: '/google-callback'
+      path: '/google-callback'
+      fullPath: '/google-callback'
+      preLoaderRoute: typeof GoogleCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/help': {
@@ -298,10 +338,12 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountRoute: AccountRoute,
+  AdminRoute: AdminRoute,
   CartRoute: CartRoute,
   CategoriesRoute: CategoriesRoute,
   CheckoutRoute: CheckoutRoute,
   DealsRoute: DealsRoute,
+  GoogleCallbackRoute: GoogleCallbackRoute,
   HelpRoute: HelpRoute,
   SearchRoute: SearchRoute,
   SellRoute: SellRoute,

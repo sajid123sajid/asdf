@@ -36,10 +36,20 @@ function SellPage() {
 
   return (
     <main className="mx-auto max-w-[1000px] px-4 py-6">
-      <h1 className="text-2xl font-bold text-foreground">Sell on Zupona</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Join a growing marketplace and start taking orders this week.
-      </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Sell on Zupona</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Join a growing marketplace and start taking orders this week.
+          </p>
+        </div>
+        <Link
+          to="/admin"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-gold bg-gold/10 px-4 py-2 text-xs font-bold text-gold-deep hover:bg-gold hover:text-primary-foreground"
+        >
+          <span>⚡ Open Product Manager &amp; Admin</span>
+        </Link>
+      </div>
 
       <ul className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {perks.map(({ icon: Icon, title, sub }) => (

@@ -41,6 +41,7 @@ export type Product = {
   rating: number;
   reviews: number;
   category: string;
+  stock?: number;
   bestSelling?: boolean;
   topPick?: boolean;
 };
@@ -235,27 +236,69 @@ const raw: Omit<Product, "discount" | "id">[] = [
   },
 ];
 
-export const products: Product[] = raw.map((p, i) => ({
+export const initialProducts: Product[] = raw.map((p, i) => ({
   ...p,
   id: String(i + 1),
   discount: Math.round(((p.oldPrice - p.price) / p.oldPrice) * 100),
 }));
 
+export const PRODUCTS_STORAGE_KEY = "zupona.products_v2";
+export const DETAILS_STORAGE_KEY = "zupona.details_v2";
+
+export function getStoredProducts(): Product[] {
+  if (typeof window === "undefined") return initialProducts;
+  try {
+    const rawData = localStorage.getItem(PRODUCTS_STORAGE_KEY);
+    if (!rawData) return initialProducts;
+    const parsed = JSON.parse(rawData);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : initialProducts;
+  } catch {
+    return initialProducts;
+  }
+}
+
+export function saveStoredProducts(list: Product[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(list));
+  } catch (err) {
+    console.error("Failed to save products:", err);
+  }
+}
+
+export let products: Product[] = initialProducts;
+
+// Synchronize fallback array for non-react calls
+if (typeof window !== "undefined") {
+  products = getStoredProducts();
+}
+
 export const bestSelling = products.filter((p) => p.bestSelling);
 export const topPicks = products.filter((p) => p.topPick);
 export const deals = [...products].sort((a, b) => b.discount - a.discount);
 
-export const getProduct = (slug: string) => products.find((p) => p.slug === slug);
+export const getProduct = (slug: string, customList?: Product[]) => {
+  const list = customList || (typeof window !== "undefined" ? getStoredProducts() : products);
+  return list.find((p) => p.slug === slug || p.id === slug);
+};
+
 export const getCategory = (slug: string) => categories.find((c) => c.slug === slug);
-export const productsByCategory = (slug: string) => products.filter((p) => p.category === slug);
-export const searchProducts = (q: string) => {
+
+export const productsByCategory = (slug: string, customList?: Product[]) => {
+  const list = customList || (typeof window !== "undefined" ? getStoredProducts() : products);
+  return list.filter((p) => p.category === slug);
+};
+
+export const searchProducts = (q: string, customList?: Product[]) => {
   const t = q.trim().toLowerCase();
   if (!t) return [];
-  return products.filter((p) =>
-    `${p.brand} ${p.name} ${getCategory(p.category)?.name ?? ""}`.toLowerCase().includes(t),
+  const list = customList || (typeof window !== "undefined" ? getStoredProducts() : products);
+  return list.filter((p) =>
+    `${p.brand} ${p.name} ${getCategory(p.category)?.name ?? p.category}`.toLowerCase().includes(t),
   );
 };
-export const formatTk = (n: number) => `৳${n.toLocaleString()}`;
+
+export const formatTk = (n: number) => `৳${Number(n || 0).toLocaleString()}`;
 
 export const formatSavings = (p: Product) =>
   `${formatTk(p.oldPrice - p.price)} OFF`;
@@ -264,21 +307,18 @@ export const hasDiscount = (p: Product) => p.oldPrice > p.price;
 
 const variantsByCategory: Record<string, string[]> = {
   "bath-body": ["250 ml", "500 ml", "1 L"],
-  beauty: ["Mini", "Regular", "Value pack"],
-  fashion: ["S", "M", "L", "XL"],
-  watches: ["Silver", "Gold", "Black"],
-  home: ["Single", "Pack of 2", "Pack of 4"],
-  baby: ["Small", "Medium", "Large"],
-  toys: ["Standard", "Deluxe"],
+  "health-beauty": ["30 ml", "60 ml", "100 ml"],
+  "mens-fashion": ["S", "M", "L", "XL", "XXL"],
+  "womens-fashion": ["S", "M", "L", "XL"],
+  "mens-accessories": ["Silver", "Gold", "Black"],
+  "womens-accessories": ["Tan", "Black", "Brown"],
+  "baby-accessories": ["Small", "Medium", "Large", "Value Pack"],
+  toys: ["Standard", "Deluxe Edition"],
+  "home-living": ["Single", "Pack of 2", "Pack of 4"],
 };
 
-/** Selectable options shown in quick view; falls back to a simple pack choice. */
 export const variantsFor = (product: Product): string[] =>
-  variantsByCategory[product.category] ?? ["Single", "Pack of 2"];
-
-/* ============================================================
-   Product detail data (the local Zupona "database")
-   ============================================================ */
+  variantsByCategory[product.category] ?? ["Standard", "Premium"];
 
 export type ProductDetail = {
   images: string[];
@@ -292,31 +332,19 @@ export type ProductDetail = {
 
 const variantLabelByCategory: Record<string, string> = {
   "bath-body": "Select size",
-  "health-beauty": "Select size",
+  "health-beauty": "Select volume",
   "mens-fashion": "Select size",
   "womens-fashion": "Select size",
   "mens-accessories": "Select colour",
   "womens-accessories": "Select colour",
   "baby-accessories": "Select pack",
   toys: "Select edition",
-  "home-living": "Select pack",
+  "home-living": "Select option",
 };
 
-const variantsBySlugCategory: Record<string, string[]> = {
-  "bath-body": ["250 ml", "500 ml", "1 L"],
-  "health-beauty": ["30 ml", "60 ml"],
-  "mens-fashion": ["S", "M", "L", "XL", "XXL"],
-  "womens-fashion": ["S", "M", "L", "XL"],
-  "mens-accessories": ["Silver", "Gold", "Black"],
-  "womens-accessories": ["Tan", "Black"],
-  "baby-accessories": ["Starter pack", "Family pack"],
-  toys: ["Standard", "Deluxe"],
-  "home-living": ["Single", "Pack of 2"],
-};
-
-const detailBySlug: Record<
+export const initialDetailsBySlug: Record<
   string,
-  { description: string; features: string[]; material?: string; stock: number }
+  { description: string; features: string[]; material?: string; stock: number; images?: string[]; specs?: { label: string; value: string }[]; variants?: string[] }
 > = {
   "lux-botanicals-liquid-soap": {
     description:
@@ -432,28 +460,66 @@ const detailBySlug: Record<
   },
 };
 
+export function getStoredProductDetails(): Record<string, Partial<ProductDetail>> {
+  if (typeof window === "undefined") return initialDetailsBySlug as any;
+  try {
+    const rawData = localStorage.getItem(DETAILS_STORAGE_KEY);
+    if (!rawData) return initialDetailsBySlug as any;
+    return JSON.parse(rawData);
+  } catch {
+    return initialDetailsBySlug as any;
+  }
+}
+
+export function saveStoredProductDetails(detailsMap: Record<string, Partial<ProductDetail>>): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(DETAILS_STORAGE_KEY, JSON.stringify(detailsMap));
+  } catch (err) {
+    console.error("Failed to save product details:", err);
+  }
+}
+
 /** Detail record for a product, assembled from the product row + detail table. */
-export const getProductDetail = (product: Product): ProductDetail => {
-  const extra = detailBySlug[product.slug];
+export const getProductDetail = (product: Product, customDetailsMap?: Record<string, any>): ProductDetail => {
+  const detailsMap = customDetailsMap || (typeof window !== "undefined" ? getStoredProductDetails() : initialDetailsBySlug);
+  const extra = detailsMap[product.slug] || detailsMap[product.id] || {};
+
   const catImage = getCategory(product.category)?.image;
-  const images = catImage && catImage !== product.image ? [product.image, catImage] : [product.image];
-  const specs: { label: string; value: string }[] = [
+  const images = (extra?.images && extra.images.length > 0)
+    ? extra.images
+    : catImage && catImage !== product.image
+      ? [product.image, catImage]
+      : [product.image];
+
+  const defaultSpecs = [
     { label: "Brand", value: product.brand },
     { label: "Category", value: getCategory(product.category)?.name ?? product.category },
     ...(extra?.material ? [{ label: "Material", value: extra.material }] : []),
-    { label: "SKU", value: `ZUP-${product.id.padStart(4, "0")}` },
+    { label: "SKU", value: `ZUP-${String(product.id || "0000").padStart(4, "0")}` },
     { label: "Country of origin", value: "Bangladesh" },
+    { label: "Warranty", value: "7 Days Replacement Guarantee" },
   ];
+
   return {
     images,
     description:
       extra?.description ??
-      `${product.brand} ${product.name}, quality-checked by Zupona and delivered nationwide.`,
-    features: extra?.features ?? [],
-    specs,
-    stock: extra?.stock ?? 10,
-    variantLabel: variantLabelByCategory[product.category] ?? "Select option",
-    variants: variantsBySlugCategory[product.category] ?? [],
+      `${product.brand} ${product.name}, quality-checked by Zupona and delivered nationwide. Features premium craftsmanship and authentic materials.`,
+    features: (extra?.features && extra.features.length > 0)
+      ? extra.features
+      : [
+          "100% Genuine and authentic product",
+          "Quality tested and verified by Zupona QA",
+          "Express delivery available across Bangladesh",
+          "Easy 30-day cash refund policy"
+        ],
+    specs: (extra?.specs && extra.specs.length > 0) ? extra.specs : defaultSpecs,
+    stock: typeof product.stock === "number" ? product.stock : (extra?.stock ?? 15),
+    variantLabel: extra?.variantLabel || variantLabelByCategory[product.category] || "Select option",
+    variants: (extra?.variants && extra.variants.length > 0)
+      ? extra.variants
+      : variantsByCategory[product.category] ?? ["Standard", "Pack of 2"],
   };
 };
 
@@ -471,25 +537,25 @@ const reviewPool = [
   { name: "Mahin R.", text: "Works well for daily use. Happy with the purchase overall." },
   { name: "Nusrat J.", text: "Genuine product, matched the photos. Only wish it came in more options." },
   { name: "Tanvir A.", text: "Solid value. Took two days to arrive in Dhaka." },
+  { name: "Ahnaf S.", text: "Super fast delivery and the packaging was supreme. 10/10!" },
 ];
 
 /** Deterministic review list derived from the product's rating so it stays stable across renders. */
 export const getReviews = (product: Product): Review[] => {
-  const seed = Number(product.id);
+  const seed = Number(product.id) || 1;
   return reviewPool.slice(0, 4).map((r, i) => {
     const day = ((seed * 7 + i * 5) % 27) + 1;
     const month = ((seed + i) % 12) + 1;
     return {
       id: `${product.slug}-r${i}`,
       name: r.name,
-      rating: Math.max(3, Math.min(5, Math.round(product.rating) - (i === 3 ? 1 : 0))),
+      rating: Math.max(3, Math.min(5, Math.round(product.rating || 4.8) - (i === 3 ? 1 : 0))),
       date: `${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")}/2026`,
       text: r.text,
     };
   });
 };
 
-/** Rating distribution percentages (5→1) approximated from the average rating. */
 export const ratingDistribution = (rating: number): number[] => {
   const five = Math.round((rating - 3) * 42);
   const four = Math.round((5 - rating) * 45);
@@ -499,19 +565,39 @@ export const ratingDistribution = (rating: number): number[] => {
   return [five, four, three, two, one];
 };
 
-/** Complementary products from other categories with a nearby price. */
-export const frequentlyBoughtWith = (product: Product): Product[] =>
-  products
+export const frequentlyBoughtWith = (product: Product, customList?: Product[]): Product[] => {
+  const list = customList || (typeof window !== "undefined" ? getStoredProducts() : products);
+  return list
     .filter((p) => p.slug !== product.slug && p.category !== product.category)
     .sort((a, b) => Math.abs(a.price - product.price) - Math.abs(b.price - product.price))
     .slice(0, 2);
+};
 
-/** Related products: same category first, then similar price range. */
-export const relatedProducts = (product: Product): Product[] => {
-  const same = products.filter((p) => p.category === product.category && p.slug !== product.slug);
+export const relatedProducts = (product: Product, customList?: Product[]): Product[] => {
+  const list = customList || (typeof window !== "undefined" ? getStoredProducts() : products);
+  const same = list.filter((p) => p.category === product.category && p.slug !== product.slug);
   if (same.length >= 4) return same.slice(0, 4);
-  const nearby = products
+  const nearby = list
     .filter((p) => p.slug !== product.slug && !same.includes(p))
     .sort((a, b) => Math.abs(a.price - product.price) - Math.abs(b.price - product.price));
   return [...same, ...nearby].slice(0, 4);
 };
+
+// Preset catalog assets for easy one-click selection when adding/editing products
+export const imagePresets = [
+  { label: "Luxury Men's Watch", url: pWatch, category: "mens-accessories" },
+  { label: "Rose Gold Watch", url: pWatchRose, category: "mens-accessories" },
+  { label: "Botanical Soap Pump", url: pSoap, category: "bath-body" },
+  { label: "Beauty Cream Bar", url: pBar, category: "bath-body" },
+  { label: "Niacinamide Serum", url: pSerum, category: "health-beauty" },
+  { label: "Black Polo T-Shirt", url: pPolo, category: "mens-fashion" },
+  { label: "Slim Fit Black Shirt", url: pShirtMan, category: "mens-fashion" },
+  { label: "Leather Tan Handbag", url: catWomensAcc, category: "womens-accessories" },
+  { label: "Embroidered Abaya", url: catWomensFashion, category: "womens-fashion" },
+  { label: "Beige Formal Blazer", url: catMensFashion, category: "mens-fashion" },
+  { label: "Baby Feeding Bottle", url: catBaby, category: "baby-accessories" },
+  { label: "Dancing Robot Toy", url: catToys, category: "toys" },
+  { label: "Bouclé Armchair", url: catHome, category: "home-living" },
+  { label: "Vitamin C Glow Oil", url: catBeauty, category: "health-beauty" },
+  { label: "Spa & Body Wash", url: catBath, category: "bath-body" },
+];

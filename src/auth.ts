@@ -1,15 +1,26 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getCookie, setCookie, deleteCookie } from "@tanstack/react-start/server";
 import {
   registerUser,
   getUserByEmail,
   updateUserProfile,
   hashPassword,
+  verifyPassword,
+  updateUserPassword,
+  createSession,
+  getUserBySession,
+  deleteSession,
   createOrder,
   getUserOrders as fetchUserOrders,
   getOrderById,
   type OrderRecord,
+  type UserRecord,
+  type UserRole,
 } from "./db";
+
+const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
+const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
+const GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
+const GOOGLE_STATE_COOKIE = "zupona_google_oauth_state";
 
 const SESSION_COOKIE = "zupona_session";
 const COOKIE_OPTIONS = {
@@ -22,10 +33,123 @@ const COOKIE_OPTIONS = {
 export interface SafeUser {
   id: string | number;
   email: string;
+  role: UserRole;
   name?: string;
   phone?: string;
   address?: string;
   created_at?: string;
+}
+
+const ADMIN_ROLES = new Set<UserRole>(["owner", "manager", "staff"]);
+const DEFAULT_ADMIN_EMAILS = new Set(["sajedaakter361@gmail.com"]);
+
+async function loadCookieHelpers() {
+  return await import("@tanstack/react-start/server");
+}
+
+function getGoogleConfig() {
+  const env = (globalThis as { __CLOUDFLARE_ENV__?: Record<string, unknown> }).__CLOUDFLARE_ENV__ ?? {};
+
+  const clientId = typeof env["GOOGLE_CLIENT_ID"] === "string" ? env["GOOGLE_CLIENT_ID"] : "";
+  const clientSecret = typeof env["GOOGLE_CLIENT_SECRET"] === "string" ? env["GOOGLE_CLIENT_SECRET"] : "";
+  const redirectUri = typeof env["GOOGLE_REDIRECT_URI"] === "string"
+    ? env["GOOGLE_REDIRECT_URI"]
+    : "http://localhost:5173/google-callback";
+
+  return { clientId, clientSecret, redirectUri };
+}
+
+function isGoogleConfigured() {
+  const { clientId, clientSecret } = getGoogleConfig();
+  return Boolean(clientId && clientSecret);
+}
+
+async function exchangeGoogleCodeForToken(code: string) {
+  const { clientId, clientSecret, redirectUri } = getGoogleConfig();
+  const response = await fetch(GOOGLE_TOKEN_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      code,
+      client_id: clientId,
+      client_secret: clientSecret,
+      redirect_uri: redirectUri,
+      grant_type: "authorization_code",
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Google token exchange failed: ${errorText}`);
+  }
+
+  return (await response.json()) as {
+    access_token?: string;
+    refresh_token?: string;
+    expires_in?: number;
+    token_type?: string;
+  };
+}
+
+async function fetchGoogleUserInfo(accessToken: string) {
+  const response = await fetch(GOOGLE_USERINFO_URL, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Google profile lookup failed: ${errorText}`);
+  }
+
+  return (await response.json()) as {
+    email?: string;
+    email_verified?: boolean;
+    name?: string;
+    given_name?: string;
+    family_name?: string;
+    picture?: string;
+    sub?: string;
+  };
+}
+
+function configuredRoleFor(email: string): UserRole {
+  const env = (globalThis as { __CLOUDFLARE_ENV__?: { ADMIN_EMAILS?: unknown } }).__CLOUDFLARE_ENV__;
+  const configuredEmails = typeof env?.ADMIN_EMAILS === "string" ? env.ADMIN_EMAILS : "";
+  const allowedEmails = new Set(
+    configuredEmails
+      .split(",")
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean)
+      .concat([...DEFAULT_ADMIN_EMAILS])
+  );
+
+  return allowedEmails.has(email.toLowerCase()) ? "owner" : "customer";
+}
+
+function toSafeUser(user: UserRecord): SafeUser {
+  const safeUser: SafeUser = {
+    id: user.id,
+    email: user.email,
+    role: user.role ?? configuredRoleFor(user.email),
+    name: user.name ?? "",
+    phone: user.phone ?? "",
+    address: user.address ?? "",
+  };
+  return user.created_at ? { ...safeUser, created_at: user.created_at } : safeUser;
+}
+
+async function signInUser(user: UserRecord): Promise<{ user: SafeUser; sessionId: string }> {
+  const safeUser = toSafeUser(user);
+  const session = await createSession(user.id);
+  const { setCookie } = await loadCookieHelpers();
+  setCookie(SESSION_COOKIE, session.id, COOKIE_OPTIONS);
+  return { user: safeUser, sessionId: session.id };
 }
 
 /**
@@ -48,30 +172,37 @@ export const authenticate = createServerFn({ method: "POST" })
       throw new Error("Email and password are required.");
     }
 
-    const hashedPassword = await hashPassword(data.password);
     const existing = await getUserByEmail(email);
+
+    const createAccount = async () => {
+      const newUser = await registerUser(
+        email,
+        await hashPassword(data.password),
+        data.name || "",
+        data.phone || "",
+        data.address || "",
+        configuredRoleFor(email)
+      );
+      const signedIn = await signInUser(newUser);
+      return { status: "signed_up" as const, user: signedIn.user };
+    };
+
+    const signInAccount = async (user: UserRecord) => {
+      const passwordMatches = await verifyPassword(data.password, user.password);
+      if (!passwordMatches) throw new Error("Incorrect password. Please try again.");
+      if (!user.password.startsWith("pbkdf2-sha256$")) {
+        await updateUserPassword(user.email, await hashPassword(data.password));
+      }
+      const signedIn = await signInUser(user);
+      return { status: "signed_in" as const, user: signedIn.user };
+    };
 
     // Explicit Sign In
     if (data.mode === "signin") {
       if (!existing) {
         throw new Error("No account found with this email. Please sign up first.");
       }
-      // Check hashed password or legacy plain text
-      if (existing.password !== hashedPassword && existing.password !== data.password) {
-        throw new Error("Incorrect password. Please try again.");
-      }
-      setCookie(SESSION_COOKIE, email, COOKIE_OPTIONS);
-      return {
-        status: "signed_in" as const,
-        user: {
-          id: existing.id,
-          email: existing.email,
-          name: existing.name || "",
-          phone: existing.phone || "",
-          address: existing.address || "",
-          created_at: existing.created_at,
-        },
-      };
+      return await signInAccount(existing);
     }
 
     // Explicit Sign Up
@@ -79,65 +210,96 @@ export const authenticate = createServerFn({ method: "POST" })
       if (existing) {
         throw new Error("An account with this email already exists. Please sign in.");
       }
-      const newUser = await registerUser(
-        email,
-        hashedPassword,
-        data.name || "",
-        data.phone || "",
-        data.address || ""
-      );
-      setCookie(SESSION_COOKIE, email, COOKIE_OPTIONS);
-      return {
-        status: "signed_up" as const,
-        user: {
-          id: newUser.id,
-          email: newUser.email,
-          name: newUser.name || "",
-          phone: newUser.phone || "",
-          address: newUser.address || "",
-          created_at: newUser.created_at,
-        },
-      };
+      return await createAccount();
     }
 
     // Auto mode (detect existing or register new)
     if (existing) {
-      if (existing.password !== hashedPassword && existing.password !== data.password) {
-        throw new Error("Incorrect password. Please try again.");
-      }
-      setCookie(SESSION_COOKIE, email, COOKIE_OPTIONS);
-      return {
-        status: "signed_in" as const,
-        user: {
-          id: existing.id,
-          email: existing.email,
-          name: existing.name || "",
-          phone: existing.phone || "",
-          address: existing.address || "",
-          created_at: existing.created_at,
-        },
-      };
+      return await signInAccount(existing);
     }
 
-    const newUser = await registerUser(
-      email,
-      hashedPassword,
-      data.name || "",
-      data.phone || "",
-      data.address || ""
-    );
-    setCookie(SESSION_COOKIE, email, COOKIE_OPTIONS);
-    return {
-      status: "signed_up" as const,
-      user: {
-        id: newUser.id,
-        email: newUser.email,
-        name: newUser.name || "",
-        phone: newUser.phone || "",
-        address: newUser.address || "",
-        created_at: newUser.created_at,
-      },
-    };
+    return await createAccount();
+  });
+
+export const getGoogleAuthUrl = createServerFn({ method: "GET" }).handler(async () => {
+  const { clientId, redirectUri } = getGoogleConfig();
+  if (!clientId) {
+    throw new Error("Google OAuth is not configured. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET as server secrets.");
+  }
+
+  const state = crypto.randomUUID();
+  const { setCookie } = await loadCookieHelpers();
+  setCookie(GOOGLE_STATE_COOKIE, state, {
+    ...COOKIE_OPTIONS,
+    httpOnly: true,
+    sameSite: "lax",
+  });
+
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    response_type: "code",
+    scope: "openid email profile",
+    state,
+    access_type: "offline",
+    prompt: "consent",
+  });
+
+  return `${GOOGLE_AUTH_URL}?${params.toString()}`;
+});
+
+export const completeGoogleLogin = createServerFn({ method: "POST" })
+  .validator((data: { code?: string; state?: string }) => data)
+  .handler(async ({ data }) => {
+    const { code, state } = data;
+    if (!code || !state) {
+      throw new Error("The Google callback is missing required data.");
+    }
+
+    const { getCookie, deleteCookie } = await loadCookieHelpers();
+    const storedState = getCookie(GOOGLE_STATE_COOKIE);
+
+    if (!storedState || storedState !== state) {
+      throw new Error("Google login could not be verified.");
+    }
+
+    deleteCookie(GOOGLE_STATE_COOKIE, { path: "/" });
+
+    if (!isGoogleConfigured()) {
+      throw new Error("Google OAuth is not configured on this server.");
+    }
+
+    const token = await exchangeGoogleCodeForToken(code);
+    if (!token.access_token) {
+      throw new Error("Google did not return an access token.");
+    }
+
+    const profile = await fetchGoogleUserInfo(token.access_token);
+    const email = (profile.email || "").trim().toLowerCase();
+    if (!email || profile.email_verified !== true) {
+      throw new Error("Google did not provide a verified email address.");
+    }
+
+    let user = await getUserByEmail(email);
+    const displayName = profile.name || [profile.given_name, profile.family_name].filter(Boolean).join(" ") || email.split("@")[0];
+
+    if (!user) {
+      user = await registerUser(
+        email,
+        `google-oauth:${profile.sub ?? crypto.randomUUID()}`,
+        displayName,
+        "",
+        "",
+        configuredRoleFor(email)
+      );
+    }
+
+    if (!user.name && displayName) {
+      user = (await updateUserProfile(email, { name: displayName })) ?? user;
+    }
+
+    const signedIn = await signInUser(user);
+    return { status: "signed_in" as const, user: signedIn.user };
   });
 
 /**
@@ -145,27 +307,34 @@ export const authenticate = createServerFn({ method: "POST" })
  */
 export const getCurrentUser = createServerFn({ method: "GET" }).handler(
   async (): Promise<SafeUser | null> => {
-    const sessionEmail = getCookie(SESSION_COOKIE);
-    if (!sessionEmail) return null;
+    const { getCookie } = await loadCookieHelpers();
+    const sessionId = getCookie(SESSION_COOKIE);
+    if (!sessionId) return null;
 
-    const user = await getUserByEmail(sessionEmail);
+    const user = await getUserBySession(sessionId);
     if (!user) return null;
-
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name || "",
-      phone: user.phone || "",
-      address: user.address || "",
-      created_at: user.created_at,
-    };
+    return toSafeUser(user);
   }
 );
+
+/** Server-only guard. Every catalog and order mutation must pass through this check. */
+export async function requireAdminUser(): Promise<SafeUser> {
+  const { getCookie } = await loadCookieHelpers();
+  const sessionId = getCookie(SESSION_COOKIE);
+  const user = sessionId ? await getUserBySession(sessionId) : null;
+  if (!user) throw new Error("Sign in with an administrator account to continue.");
+  const safeUser = toSafeUser(user);
+  if (!ADMIN_ROLES.has(safeUser.role)) throw new Error("You do not have permission to access Zupona admin.");
+  return safeUser;
+}
 
 /**
  * Log out user by clearing session cookie
  */
 export const logout = createServerFn({ method: "POST" }).handler(async () => {
+  const { getCookie, deleteCookie } = await loadCookieHelpers();
+  const sessionId = getCookie(SESSION_COOKIE);
+  if (sessionId) await deleteSession(sessionId);
   deleteCookie(SESSION_COOKIE, { path: "/" });
   return { success: true };
 });
@@ -178,24 +347,19 @@ export const updateProfile = createServerFn({ method: "POST" })
     (data: { name?: string; phone?: string; address?: string }) => data
   )
   .handler(async ({ data }) => {
-    const sessionEmail = getCookie(SESSION_COOKIE);
-    if (!sessionEmail) {
+    const { getCookie } = await loadCookieHelpers();
+    const sessionId = getCookie(SESSION_COOKIE);
+    const currentUser = sessionId ? await getUserBySession(sessionId) : null;
+    if (!currentUser) {
       throw new Error("You must be signed in to update your profile.");
     }
 
-    const updated = await updateUserProfile(sessionEmail, data);
+    const updated = await updateUserProfile(currentUser.email, data);
     if (!updated) {
       throw new Error("Failed to update profile.");
     }
 
-    return {
-      id: updated.id,
-      email: updated.email,
-      name: updated.name || "",
-      phone: updated.phone || "",
-      address: updated.address || "",
-      created_at: updated.created_at,
-    };
+    return toSafeUser(updated);
   });
 
 /**
@@ -213,11 +377,12 @@ export const placeOrder = createServerFn({ method: "POST" })
     }) => data
   )
   .handler(async ({ data }): Promise<OrderRecord> => {
-    const sessionEmail = getCookie(SESSION_COOKIE);
-    const userEmail = data.email || sessionEmail || "guest@zupona.com";
+    const { getCookie } = await loadCookieHelpers();
+    const sessionId = getCookie(SESSION_COOKIE);
+    const sessionUser = sessionId ? await getUserBySession(sessionId) : null;
+    const userEmail = sessionUser?.email || data.email || "guest@zupona.com";
 
-    const randomDigits = Math.floor(10000 + Math.random() * 90000);
-    const orderId = `ZUP-${randomDigits}`;
+    const orderId = `ZUP-${crypto.randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase()}`;
 
     const order = await createOrder({
       id: orderId,
@@ -238,9 +403,11 @@ export const placeOrder = createServerFn({ method: "POST" })
  */
 export const getUserOrders = createServerFn({ method: "GET" }).handler(
   async (): Promise<OrderRecord[]> => {
-    const sessionEmail = getCookie(SESSION_COOKIE);
-    if (!sessionEmail) return [];
-    return await fetchUserOrders(sessionEmail);
+    const { getCookie } = await loadCookieHelpers();
+    const sessionId = getCookie(SESSION_COOKIE);
+    const user = sessionId ? await getUserBySession(sessionId) : null;
+    if (!user) return [];
+    return await fetchUserOrders(user.email);
   }
 );
 

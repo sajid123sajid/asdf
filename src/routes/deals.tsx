@@ -1,8 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ProductCard } from "@/components/zupona/ProductCard";
-import { deals } from "@/components/zupona/data";
+import { useShop } from "@/components/zupona/shop-store";
 import { useFlashDeal } from "@/hooks/use-flash-deal";
-
 
 export const Route = createFileRoute("/deals")({
   head: () => ({
@@ -24,6 +23,7 @@ export const Route = createFileRoute("/deals")({
 
 function DealsPage() {
   const { hours, minutes, seconds, expired, ready } = useFlashDeal();
+  const { deals } = useShop();
   const over = ready && expired;
   const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -36,7 +36,7 @@ function DealsPage() {
         <p className="mt-1 text-sm opacity-90">
           {over
             ? "These deals have expired. New offers unlock at midnight."
-            : `Up to ${deals[0]?.discount}% off — limited stock, ends in ${
+            : `Up to ${deals[0]?.discount || 25}% off — limited stock, ends in ${
                 ready ? `${pad(hours)}:${pad(minutes)}:${pad(seconds)}` : "--:--:--"
               }.`}
         </p>
@@ -57,4 +57,3 @@ function DealsPage() {
     </main>
   );
 }
-

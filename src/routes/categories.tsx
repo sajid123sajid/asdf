@@ -2,8 +2,9 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { ChevronRight } from "lucide-react";
 
-import { categories, productsByCategory } from "@/components/zupona/data";
+import { categories } from "@/components/zupona/data";
 import { ProductCard } from "@/components/zupona/ProductCard";
+import { useShop } from "@/components/zupona/shop-store";
 
 export const Route = createFileRoute("/categories")({
   head: () => ({
@@ -27,7 +28,8 @@ function CategoriesPage() {
   const uniqueCategories = [...new Map(categories.map((c) => [c.slug, c])).values()];
   const [active, setActive] = useState(uniqueCategories[0]?.slug ?? "");
   const activeCategory = uniqueCategories.find((c) => c.slug === active) ?? uniqueCategories[0];
-  const items = productsByCategory(active);
+  const { products } = useShop();
+  const items = products.filter((p) => p.category === active);
 
   return (
     <main className="mx-auto max-w-[1200px] px-0 sm:px-4 sm:py-4">
@@ -107,7 +109,7 @@ function CategoriesPage() {
           {items.length > 0 ? (
             <ul className="grid grid-cols-2 items-stretch gap-2 sm:grid-cols-3 lg:grid-cols-4 sm:gap-4">
               {items.map((p) => (
-                <li key={p.slug}>
+                <li key={p.id || p.slug}>
                   <ProductCard product={p} />
                 </li>
               ))}

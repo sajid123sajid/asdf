@@ -2,6 +2,7 @@ import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
+import { serveProductMedia } from "./media";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -50,6 +51,9 @@ export default {
       (globalThis as any).__CLOUDFLARE_ENV__ = env;
     }
     try {
+      if (new URL(request.url).pathname.startsWith("/media/")) {
+        return await serveProductMedia(request);
+      }
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
       return await normalizeCatastrophicSsrResponse(response);

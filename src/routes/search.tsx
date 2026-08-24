@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { SearchX } from "lucide-react";
 import { ProductCard } from "@/components/zupona/ProductCard";
 import { searchProducts } from "@/components/zupona/data";
+import { useShop } from "@/components/zupona/shop-store";
 
 export const Route = createFileRoute("/search")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -26,7 +27,8 @@ export const Route = createFileRoute("/search")({
 
 function SearchPage() {
   const { q } = Route.useSearch();
-  const results = searchProducts(q);
+  const { products } = useShop();
+  const results = searchProducts(q, products);
 
   return (
     <main className="mx-auto max-w-[1200px] px-4 py-6">
@@ -39,7 +41,7 @@ function SearchPage() {
         <div className="mt-8 flex flex-col items-center gap-3 rounded-lg border border-border bg-card py-14">
           <SearchX className="h-10 w-10 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
-            No products matched your search. Try another keyword.
+            No products matched your search. Try another keyword or browse all categories.
           </p>
           <Link
             to="/categories"
@@ -51,7 +53,7 @@ function SearchPage() {
       ) : (
         <ul className="mt-5 grid grid-cols-2 items-stretch gap-2 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
           {results.map((p) => (
-            <li key={p.id} className="h-full">
+            <li key={p.id || p.slug} className="h-full">
               <ProductCard product={p} />
             </li>
           ))}
