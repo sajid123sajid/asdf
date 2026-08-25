@@ -29,7 +29,8 @@ and commit the lockfile with `npm install` before deploying. Confirm the
 Cloudflare deployment is building the latest `main` commit, not an older failed
 deployment.
 
-The Worker requires the `DB` D1 binding from `wrangler.jsonc`. Google OAuth also
+The Worker requires the `DB` D1 binding from `wrangler.jsonc`. Product media
+uploads require enabling R2 and adding the `PRODUCT_MEDIA` binding later. Google OAuth also
 requires the server-only `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and exact
 `GOOGLE_REDIRECT_URI` secrets in the Cloudflare environment.
 
