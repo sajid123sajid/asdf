@@ -75,18 +75,8 @@ function TrackOrderPage() {
         setOrder(res);
         toast.success(`Found order details for #${cleanId}`);
       } else {
-        // Mock fallback if user entered arbitrary sample code
-        setOrder({
-          id: cleanId,
-          user_email: "customer@zupona.com",
-          items: JSON.stringify([{ name: "Order Package", qty: 1, price: 1490 }]),
-          total_amount: 1490,
-          shipping_address: "Dhaka, Bangladesh",
-          phone: "01700000000",
-          payment_method: "Cash on Delivery",
-          status: "In transit",
-          created_at: new Date().toISOString(),
-        });
+        setOrder(null);
+        toast.error("No order was found with that number.");
       }
     } catch {
       toast.error("Error retrieving order details.");
@@ -174,7 +164,9 @@ function TrackOrderPage() {
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-xs text-muted-foreground">Total Payable (COD)</p>
+                <p className="text-xs text-muted-foreground">
+                  {order.payment_method === "SSLCOMMERZ" ? "Online Payment" : "Total Payable (COD)"}
+                </p>
                 <p className="text-lg font-bold text-gold">{formatTk(order.total_amount)}</p>
               </div>
             </div>

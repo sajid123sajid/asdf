@@ -177,7 +177,7 @@ function AccountPage() {
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-4">
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gold/15 text-xl font-bold text-gold ring-4 ring-gold/10">
-                  {(user.name || user.email)[0].toUpperCase()}
+                  {(user.name || user.email).charAt(0).toUpperCase()}
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
@@ -275,7 +275,7 @@ function AccountPage() {
                 </div>
               ) : (
                 <div className="grid gap-4">
-                  {orders.map((order) => {
+                  {orders.map((order: OrderRecord) => {
                     let itemsList: any[] = [];
                     try {
                       itemsList = JSON.parse(order.items);
@@ -309,6 +309,7 @@ function AccountPage() {
                             </span>
                             <Link
                               to="/track-order"
+                              search={{ id: order.id }}
                               className="inline-flex items-center gap-1 text-xs font-semibold text-gold hover:underline"
                             >
                               Track <ExternalLink className="h-3 w-3" />

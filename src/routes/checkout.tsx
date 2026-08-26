@@ -3,7 +3,8 @@ import { useState, useEffect } from "react";
 import { Minus, Plus, RotateCcw, ShieldCheck, Truck, PackageCheck, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { formatTk, getProduct } from "@/components/zupona/data";
-import { getCurrentUser, placeOrder, type SafeUser } from "../auth";
+import { useShop } from "@/components/zupona/shop-store";
+import { getCurrentUser, placeOrder, startOnlinePayment, type SafeUser } from "../auth";
 import type { OrderRecord } from "../db";
 
 export const Route = createFileRoute("/checkout")({
@@ -38,7 +39,10 @@ export const Route = createFileRoute("/checkout")({
 function CheckoutPage() {
   const { slug } = Route.useSearch();
   const { user } = Route.useLoaderData();
+  const { cartItems: cartCheckoutItems, setQty: setCartQty, removeFromCart } = useShop();
   const product = slug ? getProduct(slug) : undefined;
+  const fallbackProductEntry = product ? [{ product, qty: 1 }] : [];
+  const selectedItems = cartCheckoutItems.length > 0 ? cartCheckoutItems : fallbackProductEntry;
   const [qty, setQty] = useState(1);
   const [placedOrder, setPlacedOrder] = useState<OrderRecord | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -48,6 +52,7 @@ function CheckoutPage() {
   const [phone, setPhone] = useState("");
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [email, setEmail] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<"COD" | "ONLINE">("COD");
 
   useEffect(() => {
     if (user) {
@@ -58,7 +63,7 @@ function CheckoutPage() {
     }
   }, [user]);
 
-  if (!product) {
+  if (selectedItems.length === 0) {
     return (
       <main className="mx-auto max-w-[1200px] px-4 py-10">
         <h1 className="text-2xl font-bold text-foreground">Checkout</h1>
@@ -73,7 +78,7 @@ function CheckoutPage() {
     );
   }
 
-  const subtotal = product.price * qty;
+  const subtotal = selectedItems.reduce((sum, { product, qty: itemQty }) => sum + product.price * itemQty, 0);
   const delivery = subtotal >= 999 ? 0 : 60;
   const totalAmount = subtotal + delivery;
 
@@ -81,24 +86,24 @@ function CheckoutPage() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const order = await placeOrder({
-        data: {
-          email: email || user?.email || "guest@zupona.com",
-          items: [
-            {
-              slug: product.slug,
-              name: `${product.brand} ${product.name}`,
-              qty,
-              price: product.price,
-            },
-          ],
-          totalAmount,
-          shippingAddress: deliveryAddress,
-          phone,
-          paymentMethod: "Cash on Delivery",
-        },
-      });
-
+      const data = {
+        email: email || user?.email || "guest@zupona.com",
+        items: selectedItems.map(({ product: itemProduct, qty: itemQty }) => ({
+          slug: itemProduct.slug,
+          name: `${itemProduct.brand} ${itemProduct.name}`,
+          qty: itemQty,
+          price: itemProduct.price,
+        })),
+        totalAmount,
+        shippingAddress: deliveryAddress,
+        phone,
+      };
+      if (paymentMethod === "ONLINE") {
+        const payment = await startOnlinePayment({ data });
+        window.location.assign(payment.paymentUrl);
+        return;
+      }
+      const order = await placeOrder({ data: { ...data, paymentMethod: "Cash on Delivery" } });
       setPlacedOrder(order);
       toast.success(`Order #${order.id} placed successfully!`);
     } catch (err: any) {
@@ -126,9 +131,9 @@ function CheckoutPage() {
 
           <div className="mt-6 rounded-xl border border-border bg-background p-4 text-left text-xs sm:text-sm">
             <div className="flex justify-between py-1 border-b border-border pb-2">
-              <span className="text-muted-foreground">Item:</span>
+              <span className="text-muted-foreground">Items:</span>
               <span className="font-semibold text-foreground">
-                {qty} × {product.name}
+                {selectedItems.map(({ product: itemProduct, qty: itemQty }) => `${itemQty} × ${itemProduct.name}`).join(", ")}
               </span>
             </div>
             <div className="flex justify-between py-1 border-b border-border pb-2 pt-2">
@@ -144,6 +149,7 @@ function CheckoutPage() {
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
             <Link
               to="/track-order"
+              search={{ id: placedOrder.id }}
               className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-gold px-5 py-2.5 text-xs font-semibold text-primary-foreground hover:bg-gold-deep transition-colors"
             >
               Track Order <ArrowRight className="h-3.5 w-3.5" />
@@ -166,41 +172,56 @@ function CheckoutPage() {
 
       <div className="mt-4 grid gap-5 lg:grid-cols-[1fr_340px]">
         <section className="rounded-xl border border-border bg-card p-4 sm:p-6 shadow-sm">
-          <div className="flex gap-3">
-            <Link to="/product/$slug" params={{ slug: product.slug }} className="shrink-0">
-              <img
-                src={product.image}
-                alt={`${product.brand} ${product.name}`}
-                width={512}
-                height={512}
-                className="h-24 w-24 rounded-md object-contain border border-border bg-background"
-              />
-            </Link>
-            <div className="flex flex-1 flex-col">
-              <p className="text-xs text-muted-foreground">{product.brand}</p>
-              <p className="text-sm font-semibold text-foreground">{product.name}</p>
-              <p className="mt-1 text-sm font-bold text-gold">{formatTk(product.price)}</p>
-              <div className="mt-auto flex items-center rounded-md border border-border self-start">
-                <button
-                  type="button"
-                  aria-label="Decrease quantity"
-                  onClick={() => setQty((q) => Math.max(1, q - 1))}
-                  className="px-2 py-1.5 hover:text-gold"
-                >
-                  <Minus className="h-3.5 w-3.5" />
-                </button>
-                <span className="min-w-8 text-center text-sm font-medium">{qty}</span>
-                <button
-                  type="button"
-                  aria-label="Increase quantity"
-                  onClick={() => setQty((q) => q + 1)}
-                  className="px-2 py-1.5 hover:text-gold"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                </button>
+          {selectedItems.map(({ product: itemProduct, qty: itemQty }) => (
+            <div key={itemProduct.slug} className="flex gap-3">
+              <Link to="/product/$slug" params={{ slug: itemProduct.slug }} className="shrink-0">
+                <img
+                  src={itemProduct.image}
+                  alt={`${itemProduct.brand} ${itemProduct.name}`}
+                  width={512}
+                  height={512}
+                  className="h-24 w-24 rounded-md object-contain border border-border bg-background"
+                />
+              </Link>
+              <div className="flex flex-1 flex-col">
+                <p className="text-xs text-muted-foreground">{itemProduct.brand}</p>
+                <p className="text-sm font-semibold text-foreground">{itemProduct.name}</p>
+                <p className="mt-1 text-sm font-bold text-gold">{formatTk(itemProduct.price)}</p>
+                <div className="mt-auto flex items-center rounded-md border border-border self-start">
+                  <button
+                    type="button"
+                    aria-label={`Decrease quantity for ${itemProduct.name}`}
+                    onClick={() => {
+                      if (cartCheckoutItems.length > 0) {
+                        setCartQty(itemProduct.slug, Math.max(0, itemQty - 1));
+                        if (itemQty <= 1) removeFromCart(itemProduct.slug);
+                      } else {
+                        setQty((q) => Math.max(1, q - 1));
+                      }
+                    }}
+                    className="px-2 py-1.5 hover:text-gold"
+                  >
+                    <Minus className="h-3.5 w-3.5" />
+                  </button>
+                  <span className="min-w-8 text-center text-sm font-medium">{itemQty}</span>
+                  <button
+                    type="button"
+                    aria-label={`Increase quantity for ${itemProduct.name}`}
+                    onClick={() => {
+                      if (cartCheckoutItems.length > 0) {
+                        setCartQty(itemProduct.slug, itemQty + 1);
+                      } else {
+                        setQty((q) => q + 1);
+                      }
+                    }}
+                    className="px-2 py-1.5 hover:text-gold"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
+          ))}
 
           <form
             className="mt-6 grid gap-3.5 border-t border-border pt-6 sm:grid-cols-2"
@@ -261,12 +282,25 @@ function CheckoutPage() {
                 className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-gold"
               />
             </div>
+            <fieldset className="sm:col-span-2">
+              <legend className="mb-2 block text-xs font-medium text-muted-foreground">Payment Method</legend>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <label className="flex cursor-pointer items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground">
+                  <input type="radio" name="paymentMethod" value="COD" checked={paymentMethod === "COD"} onChange={() => setPaymentMethod("COD")} />
+                  Cash on Delivery
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground">
+                  <input type="radio" name="paymentMethod" value="ONLINE" checked={paymentMethod === "ONLINE"} onChange={() => setPaymentMethod("ONLINE")} />
+                  Online Payment (SSLCOMMERZ)
+                </label>
+              </div>
+            </fieldset>
             <button
               type="submit"
               disabled={submitting}
               className="mt-2 rounded-lg bg-gold px-4 py-3 text-sm font-semibold text-primary-foreground hover:bg-gold-deep transition-colors sm:col-span-2 disabled:opacity-50"
             >
-              {submitting ? "Placing Order..." : `Confirm Order — ${formatTk(totalAmount)} (Cash on Delivery)`}
+              {submitting ? "Processing..." : paymentMethod === "ONLINE" ? `Pay ${formatTk(totalAmount)} Online` : `Confirm Order — ${formatTk(totalAmount)} (Cash on Delivery)`}
             </button>
           </form>
         </section>

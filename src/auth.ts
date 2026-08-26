@@ -16,6 +16,9 @@ import {
   type UserRecord,
   type UserRole,
 } from "./db";
+import { getCatalogBySlug } from "./catalog-db";
+import { getProduct } from "./components/zupona/data";
+import { createSslcommerzPayment } from "./payment";
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -42,6 +45,15 @@ export interface SafeUser {
 
 const ADMIN_ROLES = new Set<UserRole>(["owner"]);
 const DEFAULT_ADMIN_EMAILS = new Set(["sajedaakter361@gmail.com"]);
+
+export function isAdminEmail(email?: string | null): boolean {
+  const normalized = email?.trim().toLowerCase();
+  return Boolean(normalized && getConfiguredAdminEmails().has(normalized));
+}
+
+export function isAdminUser(user?: Pick<SafeUser, "email" | "role"> | null): boolean {
+  return Boolean(user && ADMIN_ROLES.has(user.role) && isAdminEmail(user.email));
+}
 
 async function loadCookieHelpers() {
   return await import("@tanstack/react-start/server");
@@ -326,7 +338,7 @@ export async function requireAdminUser(): Promise<SafeUser> {
   const user = sessionId ? await getUserBySession(sessionId) : null;
   if (!user) throw new Error("Sign in with an administrator account to continue.");
   const safeUser = toSafeUser(user);
-  if (!ADMIN_ROLES.has(safeUser.role) || !getConfiguredAdminEmails().has(safeUser.email.toLowerCase())) {
+  if (!isAdminUser(safeUser)) {
     throw new Error("Only the configured Zupona owner can access the admin dashboard.");
   }
   return safeUser;
@@ -381,6 +393,45 @@ export const placeOrder = createServerFn({ method: "POST" })
     }) => data
   )
   .handler(async ({ data }): Promise<OrderRecord> => {
+    if (!Array.isArray(data.items) || data.items.length === 0 || data.items.length > 50) {
+      throw new Error("Your cart is empty or too large.");
+    }
+    if (!data.shippingAddress.trim() || data.shippingAddress.trim().length > 500) {
+      throw new Error("A valid delivery address is required.");
+    }
+    if (!data.phone.trim() || data.phone.trim().length > 40) {
+      throw new Error("A valid phone number is required.");
+    }
+
+    const pricedItems = [] as Array<{ slug: string; name: string; qty: number; price: number }>;
+    let subtotal = 0;
+    for (const item of data.items) {
+      if (typeof item.slug !== "string" || item.slug.length > 120 ||
+          !Number.isSafeInteger(item.qty) || item.qty < 1 || item.qty > 100) {
+        throw new Error("Invalid cart item.");
+      }
+
+      const catalogItem = await getCatalogBySlug(item.slug);
+      const product = catalogItem?.product ?? getProduct(item.slug);
+      if (!product || (catalogItem && catalogItem.status !== "active")) {
+        throw new Error("One of the products in your cart is no longer available.");
+      }
+      if (product.stock !== undefined && item.qty > product.stock) {
+        throw new Error(`Only ${product.stock} of ${product.name} is available.`);
+      }
+
+      const price = product.price;
+      subtotal += price * item.qty;
+      pricedItems.push({
+        slug: product.slug,
+        name: `${product.brand} ${product.name}`,
+        qty: item.qty,
+        price,
+      });
+    }
+
+    const delivery = subtotal >= 999 ? 0 : 60;
+    const totalAmount = subtotal + delivery;
     const { getCookie } = await loadCookieHelpers();
     const sessionId = getCookie(SESSION_COOKIE);
     const sessionUser = sessionId ? await getUserBySession(sessionId) : null;
@@ -391,15 +442,31 @@ export const placeOrder = createServerFn({ method: "POST" })
     const order = await createOrder({
       id: orderId,
       user_email: userEmail,
-      items: JSON.stringify(data.items),
-      total_amount: data.totalAmount,
-      shipping_address: data.shippingAddress,
-      phone: data.phone,
-      payment_method: data.paymentMethod || "Cash on Delivery",
-      status: "Order confirmed",
+      items: JSON.stringify(pricedItems),
+      total_amount: totalAmount,
+      shipping_address: data.shippingAddress.trim(),
+      phone: data.phone.trim(),
+      payment_method: data.paymentMethod === "SSLCOMMERZ" ? "SSLCOMMERZ" : "Cash on Delivery",
+      status: data.paymentMethod === "SSLCOMMERZ" ? "PENDING_PAYMENT" : "Order confirmed",
     });
 
     return order;
+  });
+
+export const startOnlinePayment = createServerFn({ method: "POST" })
+  .validator(
+    (data: {
+      email?: string;
+      items: Array<{ slug: string; name: string; qty: number; price: number }>;
+      totalAmount: number;
+      shippingAddress: string;
+      phone: string;
+    }) => data
+  )
+  .handler(async ({ data }) => {
+    const order = await placeOrder({ data: { ...data, paymentMethod: "SSLCOMMERZ" } });
+    const payment = await createSslcommerzPayment({ ...order, status: "PENDING_PAYMENT", payment_method: "SSLCOMMERZ" });
+    return { order: { ...order, status: "PENDING_PAYMENT", payment_method: "SSLCOMMERZ" }, paymentUrl: payment.paymentUrl };
   });
 
 /**

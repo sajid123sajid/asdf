@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useState, useMemo, useEffect } from "react";
 import {
   Package,
@@ -50,9 +50,16 @@ import {
   updateAdminOrderStatus,
   uploadProductMedia,
 } from "@/admin-api";
+import { getCurrentUser } from "@/auth";
 import type { OrderRecord } from "@/db";
 
 export const Route = createFileRoute("/admin")({
+  beforeLoad: async () => {
+    const user = await getCurrentUser();
+    if (!user || user.role !== "owner") {
+      throw redirect({ to: "/account" });
+    }
+  },
   head: () => ({
     meta: [
       { title: "Zupona Admin — Product & Catalog Management System" },
@@ -361,7 +368,7 @@ export function AdminPage() {
       specs: form.specs,
       variants: form.variants,
       variantLabel: form.variantLabel,
-      stock: productPayload.stock,
+      stock: productPayload.stock ?? 0,
     };
 
     try {

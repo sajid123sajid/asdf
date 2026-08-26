@@ -166,7 +166,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
             { label: "SKU", value: `ZUP-${String(newProduct.id).padStart(4, "0")}` },
             { label: "Country of origin", value: "Bangladesh" },
           ],
-          stock: newProduct.stock,
+          stock: newProduct.stock ?? 0,
           variantLabel: detailData.variantLabel || "Select option",
           variants: detailData.variants || ["Standard", "Pack of 2"],
         },

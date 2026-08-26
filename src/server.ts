@@ -3,6 +3,7 @@ import "./lib/error-capture";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 import { serveProductMedia } from "./media";
+import { processSslcommerzCallback } from "./payment";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -54,6 +55,11 @@ export default {
       if (new URL(request.url).pathname.startsWith("/media/")) {
         return await serveProductMedia(request);
       }
+      const pathname = new URL(request.url).pathname;
+      if (pathname === "/payments/sslcommerz/success") return await processSslcommerzCallback(request);
+      if (pathname === "/payments/sslcommerz/fail") return await processSslcommerzCallback(request);
+      if (pathname === "/payments/sslcommerz/cancel") return await processSslcommerzCallback(request);
+      if (pathname === "/payments/sslcommerz/ipn") return await processSslcommerzCallback(request, false);
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
       return await normalizeCatastrophicSsrResponse(response);

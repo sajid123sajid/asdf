@@ -323,11 +323,17 @@ export const variantsFor = (product: Product): string[] =>
 export type ProductDetail = {
   images: string[];
   description: string;
+  shortDescription?: string;
   features: string[];
   specs: { label: string; value: string }[];
   stock: number;
   variantLabel: string;
   variants: string[];
+  tags?: string[];
+  attributes?: { key: string; value: string }[];
+  seoTitle?: string;
+  seoDescription?: string;
+  publishStatus?: "draft" | "review" | "published" | "scheduled" | "archived";
 };
 
 const variantLabelByCategory: Record<string, string> = {

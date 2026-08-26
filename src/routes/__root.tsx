@@ -7,10 +7,9 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
 import appCss from "../styles.css?url";
-import { reportLovableError } from "@/lib/lovable-error-reporting";
 import { Header } from "@/components/zupona/Header";
 import { CartDrawer } from "@/components/zupona/CartDrawer";
 import { MobileBottomGroup } from "@/components/zupona/MobileBottomGroup";
@@ -43,9 +42,6 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
-  useEffect(() => {
-    reportLovableError(error, { boundary: "tanstack_root_error_component" });
-  }, [error]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -85,16 +81,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Zupona — Trusted Online Shop in Bangladesh" },
       { name: "description", content: "Shop premium beauty, fashion, watches, home and baby products at Zupona. Free delivery over Tk 999, 30-day returns and secure checkout." },
-      { name: "author", content: "Lovable" },
+      { name: "author", content: "Zupona" },
       { property: "og:title", content: "Zupona — Trusted Online Shop in Bangladesh" },
       { property: "og:description", content: "Shop premium beauty, fashion, watches, home and baby products at Zupona. Free delivery over Tk 999, 30-day returns and secure checkout." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:site", content: "@zupona" },
       { name: "twitter:title", content: "Zupona — Trusted Online Shop in Bangladesh" },
       { name: "twitter:description", content: "Shop premium beauty, fashion, watches, home and baby products at Zupona. Free delivery over Tk 999, 30-day returns and secure checkout." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/6fb234e629f4d4ae43a817a75d99a188/id-preview-b83181c4--ec8fc353-c4a0-4cb3-a858-3d9de0133e04.lovable.app-1786592511918.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/6fb234e629f4d4ae43a817a75d99a188/id-preview-b83181c4--ec8fc353-c4a0-4cb3-a858-3d9de0133e04.lovable.app-1786592511918.png" },
     ],
     links: [
       {

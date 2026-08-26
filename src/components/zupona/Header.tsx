@@ -63,7 +63,7 @@ export function Header() {
               <span>TK. BDT</span>
               <ChevronDown className="h-3 w-3" />
             </button>
-            <Link to="/track-order" className="hover:text-gold">
+            <Link to="/track-order" search={{ id: undefined }} className="hover:text-gold">
               Track Order
             </Link>
             <Link to="/help" className="hover:text-gold">

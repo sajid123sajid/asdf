@@ -8,7 +8,7 @@ import {
   saveSiteSetting,
   type CatalogProductInput,
 } from "./catalog-db";
-import { getAllOrders, updateOrderStatus, type OrderRecord } from "./db";
+import { getAllOrders, getOrderById, updateOrderStatus, type OrderRecord } from "./db";
 import { getProductMediaBucket } from "./media";
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
@@ -40,15 +40,18 @@ function safeFileName(name: string, contentType: string): string {
   return base.includes(".") ? base : `${base || "product"}.${extension}`;
 }
 
-export const getPublicCatalog = createServerFn({ method: "GET" }).handler(async () => {
+type SerializableValue = string | number | boolean | null | SerializableValue[] | { [key: string]: SerializableValue };
+type SiteSettings = Record<string, SerializableValue>;
+
+export const getPublicCatalog = createServerFn({ method: "GET" }).handler(async (): Promise<{ catalog: Awaited<ReturnType<typeof listCatalog>>; settings: SiteSettings }> => {
   const catalog = await listCatalog(false);
-  return { catalog, settings: await getSiteSettings() };
+  return { catalog, settings: (await getSiteSettings()) as SiteSettings };
 });
 
-export const getAdminDashboard = createServerFn({ method: "GET" }).handler(async () => {
+export const getAdminDashboard = createServerFn({ method: "GET" }).handler(async (): Promise<{ user: Awaited<ReturnType<typeof requireAdminUser>>; catalog: Awaited<ReturnType<typeof listCatalog>>; orders: Awaited<ReturnType<typeof getAllOrders>>; settings: SiteSettings }> => {
   const user = await requireAdminUser();
   const [catalog, orders, settings] = await Promise.all([listCatalog(true), getAllOrders(), getSiteSettings()]);
-  return { user, catalog, orders, settings };
+  return { user, catalog, orders, settings: settings as SiteSettings };
 });
 
 export const saveAdminProduct = createServerFn({ method: "POST" })
@@ -85,6 +88,10 @@ export const updateAdminOrderStatus = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<OrderRecord | null> => {
     await requireAdminUser();
     if (!ORDER_STATUSES.has(data.status)) throw new Error("Invalid order status.");
+    const existing = await getOrderById(data.orderId);
+    if (existing?.payment_method === "SSLCOMMERZ" && existing.status === "PENDING_PAYMENT") {
+      throw new Error("This order cannot enter fulfillment before payment is verified.");
+    }
     return await updateOrderStatus(data.orderId, data.status);
   });
 

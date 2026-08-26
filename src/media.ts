@@ -20,7 +20,7 @@ function getRuntimeEnvironment(): Record<string, unknown> | null {
 }
 
 export function getProductMediaBucket(): ProductMediaBucket | null {
-  const bucket = getRuntimeEnvironment()?.PRODUCT_MEDIA;
+  const bucket = getRuntimeEnvironment()?.["PRODUCT_MEDIA"];
   if (!bucket || typeof bucket !== "object" || !("put" in bucket) || !("get" in bucket)) return null;
   return bucket as ProductMediaBucket;
 }

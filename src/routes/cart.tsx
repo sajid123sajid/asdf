@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Minus, Plus, ShoppingCart, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { formatTk } from "@/components/zupona/data";
@@ -22,7 +22,8 @@ export const Route = createFileRoute("/cart")({
 });
 
 function CartPage() {
-  const { cartItems, cartTotal, setQty, removeFromCart, clearCart } = useShop();
+  const navigate = useNavigate();
+  const { cartItems, cartTotal, setQty, removeFromCart } = useShop();
   const delivery = cartTotal === 0 || cartTotal >= 999 ? 0 : 60;
 
   return (
@@ -125,15 +126,17 @@ function CartPage() {
             <button
               type="button"
               onClick={() => {
-                clearCart();
-                toast.success("Order placed! We'll call you to confirm.");
+                navigate({
+                  to: "/checkout",
+                  search: { slug: cartItems[0]?.product.slug ?? undefined },
+                });
               }}
               className="mt-4 w-full rounded-md bg-gold px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-gold-deep"
             >
               Proceed to Checkout
             </button>
             <p className="mt-2 text-center text-xs text-muted-foreground">
-              Cash on delivery available
+              Checkout calculates the final payable amount on the server.
             </p>
           </aside>
         </div>

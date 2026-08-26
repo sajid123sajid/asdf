@@ -14,22 +14,49 @@ export type CatalogProductInput = {
   name: string;
   slug?: string;
   brand?: string;
+  sku?: string;
+  productType?: "physical" | "digital" | "service";
   category: string;
   price: number;
   oldPrice?: number;
   stock?: number;
+  lowStockThreshold?: number;
   rating?: number;
   reviews?: number;
   bestSelling?: boolean;
   topPick?: boolean;
   status?: CatalogStatus;
+  reviewStatus?: "incomplete" | "ready" | "approved" | "rejected";
   description?: string;
+  shortDescription?: string;
+  bulletPoints?: string[];
   features?: string[];
   specs?: Array<{ label: string; value: string }>;
   variants?: string[];
   variantLabel?: string;
+  variantSkus?: Array<{
+    id?: string;
+    sku: string;
+    title?: string;
+    optionValues?: Record<string, string>;
+    price?: number;
+    oldPrice?: number;
+    stock?: number;
+    lowStockThreshold?: number;
+    image?: string;
+    isActive?: boolean;
+  }>;
+  tags?: string[];
+  attributes?: Array<{ key: string; value: string }>;
+  seoTitle?: string;
+  seoDescription?: string;
+  searchKeywords?: string;
+  returnPolicy?: string;
+  shippingNotes?: string;
+  scheduledFor?: string;
   galleryImages?: string[];
   image?: string;
+  publishStatus?: "draft" | "review" | "published" | "scheduled" | "archived";
 };
 
 type ProductRow = Record<string, unknown>;
@@ -82,9 +109,25 @@ function parseSpecs(value: unknown): Array<{ label: string; value: string }> {
     return parsed.flatMap((item) => {
       if (!item || typeof item !== "object") return [];
       const record = item as Record<string, unknown>;
-      const label = asString(record.label).trim();
-      const specValue = asString(record.value).trim();
+      const label = asString(record["label"]).trim();
+      const specValue = asString(record["value"]).trim();
       return label && specValue ? [{ label, value: specValue }] : [];
+    });
+  } catch {
+    return [];
+  }
+}
+
+function parseAttributeList(value: unknown): Array<{ key: string; value: string }> {
+  try {
+    const parsed = JSON.parse(asString(value, "[]"));
+    if (!Array.isArray(parsed)) return [];
+    return parsed.flatMap((item) => {
+      if (!item || typeof item !== "object") return [];
+      const record = item as Record<string, unknown>;
+      const key = asString(record["key"]).trim();
+      const attributeValue = asString(record["value"]).trim();
+      return key && attributeValue ? [{ key, value: attributeValue }] : [];
     });
   } catch {
     return [];
@@ -106,44 +149,50 @@ function mediaUrl(objectKey: string): string {
 }
 
 function rowToCatalogItem(row: ProductRow, imageRows: ImageRow[]): CatalogItem {
-  const id = asString(row.id);
+  const id = asString(row["id"]);
   const imageKeys = imageRows
     .filter((image) => image.product_id === id)
     .sort((left, right) => left.sort_order - right.sort_order)
     .map((image) => image.object_key);
   const images = imageKeys.map(mediaUrl);
-  const price = asNumber(row.price);
-  const oldPrice = asNumber(row.old_price, price);
-  const stock = Math.max(0, Math.floor(asNumber(row.stock)));
+  const price = asNumber(row["price"]);
+  const oldPrice = asNumber(row["old_price"], price);
+  const stock = Math.max(0, Math.floor(asNumber(row["stock"])));
   const discount = oldPrice > price ? Math.round(((oldPrice - price) / oldPrice) * 100) : 0;
 
   return {
     product: {
       id,
-      slug: asString(row.slug),
-      name: asString(row.name),
-      brand: asString(row.brand, "Zupona"),
-      category: asString(row.category_slug),
+      slug: asString(row["slug"]),
+      name: asString(row["name"]),
+      brand: asString(row["brand"], "Zupona"),
+      category: asString(row["category_slug"]),
       price,
       oldPrice,
       discount,
-      rating: asNumber(row.rating, 4.8),
-      reviews: Math.max(0, Math.floor(asNumber(row.reviews))),
+      rating: asNumber(row["rating"], 4.8),
+      reviews: Math.max(0, Math.floor(asNumber(row["reviews"]))),
       stock,
-      bestSelling: asBoolean(row.best_selling),
-      topPick: asBoolean(row.top_pick),
+      bestSelling: asBoolean(row["best_selling"]),
+      topPick: asBoolean(row["top_pick"]),
       image: images[0] ?? "",
     },
     detail: {
       images,
-      description: asString(row.description),
-      features: parseStringArray(row.features_json),
-      specs: parseSpecs(row.specs_json),
-      variants: parseStringArray(row.variants_json),
-      variantLabel: asString(row.variant_label, "Select option"),
+      description: asString(row["description"]),
+      shortDescription: asString(row["short_description"]),
+      features: parseStringArray(row["features_json"]),
+      specs: parseSpecs(row["specs_json"]),
+      variants: parseStringArray(row["variants_json"]),
+      variantLabel: asString(row["variant_label"], "Select option"),
       stock,
+      tags: parseStringArray(row["tags_json"]),
+      attributes: parseAttributeList(row["attributes_json"]),
+      seoTitle: asString(row["seo_title"]),
+      seoDescription: asString(row["seo_description"]),
+      publishStatus: (asString(row["publish_status"], "draft") as "draft" | "review" | "published" | "scheduled" | "archived"),
     },
-    status: (asString(row.status, "active") as CatalogStatus),
+    status: (asString(row["status"], "active") as CatalogStatus),
   };
 }
 
@@ -155,6 +204,12 @@ function normalizeInput(input: CatalogProductInput): Required<CatalogProductInpu
   const status: CatalogStatus = ["draft", "active", "archived"].includes(input.status ?? "active")
     ? (input.status ?? "active")
     : "active";
+  const reviewStatus = ["incomplete", "ready", "approved", "rejected"].includes(input.reviewStatus ?? "approved")
+    ? (input.reviewStatus ?? "approved")
+    : "incomplete";
+  const publishStatus = ["draft", "review", "published", "scheduled", "archived"].includes(input.publishStatus ?? "draft")
+    ? (input.publishStatus ?? "draft")
+    : "draft";
   const galleryImages = Array.from(new Set([...(input.galleryImages ?? []), input.image ?? ""].map((value) => value.trim()).filter(Boolean)));
 
   return {
@@ -162,16 +217,22 @@ function normalizeInput(input: CatalogProductInput): Required<CatalogProductInpu
     name,
     slug,
     brand: input.brand?.trim() || "Zupona",
+    sku: input.sku?.trim() || "",
+    productType: input.productType ?? "physical",
     category: input.category.trim(),
     price,
     oldPrice,
     stock: Math.max(0, Math.floor(Number(input.stock) || 0)),
+    lowStockThreshold: Math.max(0, Math.floor(Number(input.lowStockThreshold) || 5)),
     rating: Math.min(5, Math.max(0, Number(input.rating) || 4.8)),
     reviews: Math.max(0, Math.floor(Number(input.reviews) || 0)),
     bestSelling: Boolean(input.bestSelling),
     topPick: Boolean(input.topPick),
     status,
+    reviewStatus,
     description: input.description?.trim() || "",
+    shortDescription: input.shortDescription?.trim() || "",
+    bulletPoints: (input.bulletPoints ?? []).map((value) => value.trim()).filter(Boolean).slice(0, 10),
     features: (input.features ?? []).map((value) => value.trim()).filter(Boolean).slice(0, 24),
     specs: (input.specs ?? []).flatMap((spec) => {
       const label = spec.label.trim();
@@ -180,8 +241,22 @@ function normalizeInput(input: CatalogProductInput): Required<CatalogProductInpu
     }).slice(0, 24),
     variants: (input.variants ?? []).map((value) => value.trim()).filter(Boolean).slice(0, 50),
     variantLabel: input.variantLabel?.trim() || "Select option",
+    variantSkus: input.variantSkus ?? [],
+    tags: (input.tags ?? []).map((value) => value.trim()).filter(Boolean).slice(0, 24),
+    attributes: (input.attributes ?? []).flatMap((attribute) => {
+      const key = attribute.key.trim();
+      const value = attribute.value.trim();
+      return key && value ? [{ key, value }] : [];
+    }).slice(0, 24),
+    seoTitle: input.seoTitle?.trim() || "",
+    seoDescription: input.seoDescription?.trim() || "",
+    searchKeywords: input.searchKeywords?.trim() || "",
+    returnPolicy: input.returnPolicy?.trim() || "",
+    shippingNotes: input.shippingNotes?.trim() || "",
+    scheduledFor: input.scheduledFor?.trim() || "",
     galleryImages,
     image: galleryImages[0] ?? "",
+    publishStatus,
   };
 }
 
@@ -220,7 +295,7 @@ export async function getCatalogBySlug(slug: string, includeUnpublished = false)
   const product = row as ProductRow;
   const imageResult = await db
     .prepare("SELECT product_id, object_key, alt_text, sort_order FROM product_images WHERE product_id = ? ORDER BY sort_order ASC")
-    .bind(asString(product.id))
+    .bind(asString(product["id"]))
     .all();
   const images = (imageResult.results ?? []).filter((item): item is ImageRow => Boolean(item) && typeof item === "object") as ImageRow[];
   return rowToCatalogItem(product, images);
@@ -265,11 +340,17 @@ export async function saveCatalogProduct(input: CatalogProductInput, actorId: nu
       detail: {
         images: product.galleryImages,
         description: product.description,
+        shortDescription: product.shortDescription,
         features: product.features,
         specs: product.specs,
         variants: product.variants,
         variantLabel: product.variantLabel,
         stock: product.stock,
+        tags: product.tags,
+        attributes: product.attributes,
+        seoTitle: product.seoTitle,
+        seoDescription: product.seoDescription,
+        publishStatus: product.publishStatus,
       },
       status: product.status,
     };
@@ -280,22 +361,26 @@ export async function saveCatalogProduct(input: CatalogProductInput, actorId: nu
   await db
     .prepare(
       `INSERT INTO products (
-        id, slug, name, brand, category_slug, description, price, old_price, stock, rating, reviews,
-        features_json, specs_json, variants_json, variant_label, best_selling, top_pick, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, slug, name, brand, category_slug, description, short_description, price, old_price, stock, rating, reviews,
+        features_json, specs_json, variants_json, variant_label, best_selling, top_pick, status,
+        tags_json, attributes_json, seo_title, seo_description, publish_status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         slug = excluded.slug, name = excluded.name, brand = excluded.brand, category_slug = excluded.category_slug,
-        description = excluded.description, price = excluded.price, old_price = excluded.old_price, stock = excluded.stock,
-        rating = excluded.rating, reviews = excluded.reviews, features_json = excluded.features_json,
-        specs_json = excluded.specs_json, variants_json = excluded.variants_json, variant_label = excluded.variant_label,
-        best_selling = excluded.best_selling, top_pick = excluded.top_pick, status = excluded.status,
+        description = excluded.description, short_description = excluded.short_description, price = excluded.price,
+        old_price = excluded.old_price, stock = excluded.stock, rating = excluded.rating, reviews = excluded.reviews,
+        features_json = excluded.features_json, specs_json = excluded.specs_json, variants_json = excluded.variants_json,
+        variant_label = excluded.variant_label, best_selling = excluded.best_selling, top_pick = excluded.top_pick,
+        status = excluded.status, tags_json = excluded.tags_json, attributes_json = excluded.attributes_json,
+        seo_title = excluded.seo_title, seo_description = excluded.seo_description, publish_status = excluded.publish_status,
         updated_at = CURRENT_TIMESTAMP`
     )
     .bind(
-      product.id, product.slug, product.name, product.brand, product.category, product.description,
+      product.id, product.slug, product.name, product.brand, product.category, product.description, product.shortDescription,
       product.price, product.oldPrice, product.stock, product.rating, product.reviews,
       JSON.stringify(product.features), JSON.stringify(product.specs), JSON.stringify(product.variants), product.variantLabel,
-      product.bestSelling ? 1 : 0, product.topPick ? 1 : 0, product.status
+      product.bestSelling ? 1 : 0, product.topPick ? 1 : 0, product.status,
+      JSON.stringify(product.tags), JSON.stringify(product.attributes), product.seoTitle, product.seoDescription, product.publishStatus
     )
     .run();
 
@@ -356,7 +441,7 @@ export async function getSiteSettings(): Promise<Record<string, unknown>> {
     if (!item || typeof item !== "object") return [];
     const row = item as Record<string, unknown>;
     try {
-      return [[asString(row.setting_key), JSON.parse(asString(row.value_json))]];
+      return [[asString(row["setting_key"]), JSON.parse(asString(row["value_json"]))]];
     } catch {
       return [];
     }

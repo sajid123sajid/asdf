@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { BarChart3, Store, Truck, Wallet } from "lucide-react";
 import { toast } from "sonner";

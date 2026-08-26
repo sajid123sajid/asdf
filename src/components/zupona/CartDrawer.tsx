@@ -1,12 +1,13 @@
 import { useEffect } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { ChevronLeft, Minus, Plus, ReceiptText, ShoppingCart, Tag, Trash2, Truck, X } from "lucide-react";
 import { toast } from "sonner";
 import { formatTk } from "./data";
 import { useShop } from "./shop-store";
 
 export function CartDrawer() {
-  const { cartOpen, closeCart, cartItems, cartTotal, cartCount, setQty, removeFromCart, clearCart } = useShop();
+  const navigate = useNavigate();
+  const { cartOpen, closeCart, cartItems, cartTotal, cartCount, setQty, removeFromCart } = useShop();
 
   const savings = cartItems.reduce(
     (n, { product, qty }) => n + Math.max(0, product.oldPrice - product.price) * qty,
@@ -242,9 +243,11 @@ export function CartDrawer() {
             type="button"
             disabled={cartItems.length === 0}
             onClick={() => {
-              clearCart();
               closeCart();
-              toast.success("Order placed! We'll call you to confirm.");
+              navigate({
+                to: "/checkout",
+                search: { slug: cartItems[0]?.product.slug ?? undefined },
+              });
             }}
             className="flex w-full items-center justify-center gap-2 rounded-lg bg-gold px-4 py-3 text-sm font-bold text-primary-foreground transition-colors hover:bg-gold-deep disabled:cursor-not-allowed disabled:opacity-50"
           >

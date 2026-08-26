@@ -87,6 +87,7 @@ function HelpPage() {
       <div className="mt-6 flex flex-wrap gap-2">
         <Link
           to="/track-order"
+          search={{ id: undefined }}
           className="rounded-md bg-gold px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-gold-deep"
         >
           Track an order

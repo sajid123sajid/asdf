@@ -1,9 +1,9 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "asdf",
+  "name": "zupona-store",
   "compatibility_date": "2026-08-01",
   "compatibility_flags": ["nodejs_compat"],
-  "main": "@tanstack/react-start/server-entry",
+  "main": "./src/server.ts",
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1
@@ -15,5 +15,5 @@
       "database_id": "8f4a933e-9452-48b4-9a4a-b266df4b0021",
       "migrations_dir": "migrations"
     }
-  ],
+  ]
 }

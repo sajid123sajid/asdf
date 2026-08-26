@@ -37,7 +37,9 @@ const memoryUsers = new Map<string, UserRecord>();
 const memoryOrders = new Map<string, OrderRecord>();
 const memorySessions = new Map<string, SessionRecord>();
 
-const PASSWORD_ITERATIONS = 210_000;
+// Cloudflare Workers' PBKDF2 implementation rejects iteration counts above 100,000.
+// Keep this value at the runtime maximum so hashing works in production.
+const PASSWORD_ITERATIONS = 100_000;
 
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = "";
@@ -62,7 +64,7 @@ function safeEqual(left: Uint8Array, right: Uint8Array): boolean {
 async function pbkdf2(password: string, salt: Uint8Array, iterations: number): Promise<Uint8Array> {
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
   const bits = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", hash: "SHA-256", salt, iterations },
+    { name: "PBKDF2", hash: "SHA-256", salt: salt as unknown as BufferSource, iterations },
     key,
     256
   );
@@ -81,7 +83,7 @@ export async function verifyPassword(password: string, storedHash: string): Prom
   const [scheme, iterationValue, saltValue, hashValue] = storedHash.split("$");
   if (scheme === "pbkdf2-sha256" && iterationValue && saltValue && hashValue) {
     const iterations = Number(iterationValue);
-    if (!Number.isSafeInteger(iterations) || iterations < 100_000 || iterations > 1_000_000) return false;
+    if (!Number.isSafeInteger(iterations) || iterations < 100_000 || iterations > 100_000) return false;
     const actual = await pbkdf2(password, base64ToBytes(saltValue), iterations);
     return safeEqual(actual, base64ToBytes(hashValue));
   }
@@ -117,10 +119,17 @@ async function ensureTables(db: any) {
           name TEXT DEFAULT '',
           phone TEXT DEFAULT '',
           address TEXT DEFAULT '',
+          role TEXT DEFAULT 'customer',
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )`
       )
       .run();
+
+    try {
+      await db.prepare("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'customer'").run();
+    } catch {
+      // Some DBs already have the column; ignore the harmless migration failure.
+    }
 
     await db
       .prepare(
@@ -137,6 +146,25 @@ async function ensureTables(db: any) {
         )`
       )
       .run();
+
+    await db.prepare(
+      `CREATE TABLE IF NOT EXISTS payments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id TEXT NOT NULL UNIQUE,
+        tran_id TEXT NOT NULL UNIQUE,
+        val_id TEXT,
+        amount REAL NOT NULL,
+        currency TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'INITIATED',
+        gateway_status TEXT,
+        bank_tran_id TEXT,
+        card_type TEXT,
+        raw_response TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (order_id) REFERENCES orders(id)
+      )`
+    ).run();
 
     dbInitialized = true;
   } catch (err) {
@@ -244,12 +272,10 @@ export async function updateUserProfile(
 
   const existing = memoryUsers.get(normalizedEmail);
   if (existing) {
-    const updated = {
-      ...existing,
-      name: data.name !== undefined ? data.name : existing.name,
-      phone: data.phone !== undefined ? data.phone : existing.phone,
-      address: data.address !== undefined ? data.address : existing.address,
-    };
+    const updated: UserRecord = { ...existing };
+    if (data.name !== undefined) updated.name = data.name;
+    if (data.phone !== undefined) updated.phone = data.phone;
+    if (data.address !== undefined) updated.address = data.address;
     memoryUsers.set(normalizedEmail, updated);
     return updated;
   }
