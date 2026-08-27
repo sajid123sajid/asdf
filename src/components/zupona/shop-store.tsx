@@ -2,10 +2,6 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import {
   initialProducts,
   initialDetailsBySlug,
-  getStoredProducts,
-  saveStoredProducts,
-  getStoredProductDetails,
-  saveStoredProductDetails,
   categories,
   getProductDetail as assembleProductDetail,
   type Product,
@@ -67,8 +63,8 @@ function read<T>(key: string, fallback: T): T {
 }
 
 export function ShopProvider({ children }: { children: ReactNode }) {
-  const [productsList, setProductsList] = useState<Product[]>(() => getStoredProducts());
-  const [detailsMap, setDetailsMap] = useState<Record<string, Partial<ProductDetail>>>(() => getStoredProductDetails());
+  const [productsList, setProductsList] = useState<Product[]>(initialProducts);
+  const [detailsMap, setDetailsMap] = useState<Record<string, Partial<ProductDetail>>>(initialDetailsBySlug);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [wishlist, setWishlist] = useState<string[]>([]);
   const [hydrated, setHydrated] = useState(false);
@@ -77,10 +73,6 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setCart(read<CartLine[]>(CART_KEY, []));
     setWishlist(read<string[]>(WISH_KEY, []));
-    const stored = getStoredProducts();
-    if (stored && stored.length > 0) setProductsList(stored);
-    const storedDetails = getStoredProductDetails();
-    if (storedDetails) setDetailsMap(storedDetails);
     setHydrated(true);
   }, []);
 
@@ -112,18 +104,6 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(WISH_KEY, JSON.stringify(wishlist));
     }
   }, [wishlist, hydrated]);
-
-  useEffect(() => {
-    if (hydrated) {
-      saveStoredProducts(productsList);
-    }
-  }, [productsList, hydrated]);
-
-  useEffect(() => {
-    if (hydrated) {
-      saveStoredProductDetails(detailsMap);
-    }
-  }, [detailsMap, hydrated]);
 
   // Product helper functions
   const addProduct = (
@@ -255,8 +235,6 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   const resetToDefaultProducts = () => {
     setProductsList(initialProducts);
     setDetailsMap(initialDetailsBySlug as any);
-    saveStoredProducts(initialProducts);
-    saveStoredProductDetails(initialDetailsBySlug as any);
     toast.success("Catalog reset to factory default products!");
   };
 

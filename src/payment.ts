@@ -1,4 +1,4 @@
-import { getD1Database, getOrderById, type OrderRecord } from "./db";
+import { getD1Database, getOrderById, type OrderRecord } from "./db.ts";
 
 type RuntimeEnv = {
   SSLCOMMERZ_STORE_ID?: string;

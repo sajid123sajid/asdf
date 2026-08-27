@@ -1,5 +1,5 @@
-import { getD1Database, type UserRole } from "./db";
-import type { Product, ProductDetail } from "./components/zupona/data";
+import { getD1Database, type UserRole } from "./db.ts";
+import type { Product, ProductDetail, ProductVariant } from "./components/zupona/data.ts";
 
 export type CatalogStatus = "draft" | "active" | "archived";
 
@@ -55,12 +55,14 @@ export type CatalogProductInput = {
   shippingNotes?: string;
   scheduledFor?: string;
   galleryImages?: string[];
+  galleryImageAlts?: string[];
   image?: string;
   publishStatus?: "draft" | "review" | "published" | "scheduled" | "archived";
 };
 
 type ProductRow = Record<string, unknown>;
 type ImageRow = { product_id: string; object_key: string; alt_text?: string; sort_order: number };
+type VariantRow = Record<string, unknown>;
 type Database = {
   prepare: (query: string) => {
     bind: (...values: unknown[]) => {
@@ -134,6 +136,36 @@ function parseAttributeList(value: unknown): Array<{ key: string; value: string 
   }
 }
 
+function parseVariantRows(rows: VariantRow[]): ProductVariant[] {
+  return rows.flatMap((row) => {
+    const sku = asString(row["sku"]).trim();
+    if (!sku) return [];
+    let optionValues: Record<string, string> = {};
+    try {
+      const parsed = JSON.parse(asString(row["option_values_json"], "{}"));
+      if (parsed && typeof parsed === "object") {
+        optionValues = Object.fromEntries(
+          Object.entries(parsed).flatMap(([key, value]) => typeof value === "string" ? [[key, value]] : []),
+        );
+      }
+    } catch {
+      optionValues = {};
+    }
+    return [{
+      id: asString(row["id"]),
+      sku,
+      title: asString(row["title"]),
+      optionValues,
+      ...(row["price"] !== null && row["price"] !== undefined ? { price: asNumber(row["price"]) } : {}),
+      ...(row["old_price"] !== null && row["old_price"] !== undefined ? { oldPrice: asNumber(row["old_price"]) } : {}),
+      stock: Math.max(0, Math.floor(asNumber(row["stock"]))),
+      lowStockThreshold: Math.max(0, Math.floor(asNumber(row["low_stock_threshold"], 5))),
+      ...(asString(row["image_key"]) ? { image: mediaUrl(asString(row["image_key"])) } : {}),
+      isActive: asBoolean(row["is_active"]),
+    }];
+  });
+}
+
 function normalizeSlug(value: string): string {
   return value
     .trim()
@@ -148,7 +180,7 @@ function mediaUrl(objectKey: string): string {
   return `/media/${objectKey.split("/").map(encodeURIComponent).join("/")}`;
 }
 
-function rowToCatalogItem(row: ProductRow, imageRows: ImageRow[]): CatalogItem {
+function rowToCatalogItem(row: ProductRow, imageRows: ImageRow[], variantRows: VariantRow[] = []): CatalogItem {
   const id = asString(row["id"]);
   const imageKeys = imageRows
     .filter((image) => image.product_id === id)
@@ -179,11 +211,21 @@ function rowToCatalogItem(row: ProductRow, imageRows: ImageRow[]): CatalogItem {
     },
     detail: {
       images,
+      imageAlts: imageRows.filter((image) => image.product_id === id).sort((left, right) => left.sort_order - right.sort_order).map((image) => image.alt_text ?? ""),
+      sku: asString(row["sku"]),
+      productType: (asString(row["product_type"], "physical") as "physical" | "digital" | "service"),
+      bulletPoints: parseStringArray(row["bullet_points_json"]),
+      searchKeywords: asString(row["search_keywords"]),
+      scheduledFor: asString(row["scheduled_for"]),
+      reviewStatus: (asString(row["review_status"], "approved") as "incomplete" | "ready" | "approved" | "rejected"),
+      returnPolicy: asString(row["return_policy"]),
+      shippingNotes: asString(row["shipping_notes"]),
       description: asString(row["description"]),
       shortDescription: asString(row["short_description"]),
       features: parseStringArray(row["features_json"]),
       specs: parseSpecs(row["specs_json"]),
       variants: parseStringArray(row["variants_json"]),
+      variantSkus: parseVariantRows(variantRows),
       variantLabel: asString(row["variant_label"], "Select option"),
       stock,
       tags: parseStringArray(row["tags_json"]),
@@ -191,6 +233,7 @@ function rowToCatalogItem(row: ProductRow, imageRows: ImageRow[]): CatalogItem {
       seoTitle: asString(row["seo_title"]),
       seoDescription: asString(row["seo_description"]),
       publishStatus: (asString(row["publish_status"], "draft") as "draft" | "review" | "published" | "scheduled" | "archived"),
+      catalogStatus: (asString(row["status"], "active") as "draft" | "active" | "archived"),
     },
     status: (asString(row["status"], "active") as CatalogStatus),
   };
@@ -201,8 +244,9 @@ function normalizeInput(input: CatalogProductInput): Required<CatalogProductInpu
   const slug = normalizeSlug(input.slug || name);
   const price = Math.max(0, Number(input.price) || 0);
   const oldPrice = Math.max(price, Number(input.oldPrice) || price);
-  const status: CatalogStatus = ["draft", "active", "archived"].includes(input.status ?? "active")
-    ? (input.status ?? "active")
+  const requestedStatus = input.status ?? (input.publishStatus === "archived" ? "archived" : input.publishStatus === "draft" ? "draft" : "active");
+  const status: CatalogStatus = ["draft", "active", "archived"].includes(requestedStatus)
+    ? requestedStatus as CatalogStatus
     : "active";
   const reviewStatus = ["incomplete", "ready", "approved", "rejected"].includes(input.reviewStatus ?? "approved")
     ? (input.reviewStatus ?? "approved")
@@ -211,6 +255,7 @@ function normalizeInput(input: CatalogProductInput): Required<CatalogProductInpu
     ? (input.publishStatus ?? "draft")
     : "draft";
   const galleryImages = Array.from(new Set([...(input.galleryImages ?? []), input.image ?? ""].map((value) => value.trim()).filter(Boolean)));
+  const galleryImageAlts = galleryImages.map((_, index) => (input.galleryImageAlts?.[index] ?? "").trim().slice(0, 240));
 
   return {
     id: input.id || crypto.randomUUID(),
@@ -255,22 +300,25 @@ function normalizeInput(input: CatalogProductInput): Required<CatalogProductInpu
     shippingNotes: input.shippingNotes?.trim() || "",
     scheduledFor: input.scheduledFor?.trim() || "",
     galleryImages,
+    galleryImageAlts,
     image: galleryImages[0] ?? "",
     publishStatus,
   };
 }
 
-async function getRows(db: Database, includeUnpublished: boolean): Promise<{ products: ProductRow[]; images: ImageRow[] }> {
+async function getRows(db: Database, includeUnpublished: boolean): Promise<{ products: ProductRow[]; images: ImageRow[]; variants: VariantRow[] }> {
   const productQuery = includeUnpublished
     ? "SELECT * FROM products ORDER BY created_at DESC"
     : "SELECT * FROM products WHERE status = 'active' ORDER BY created_at DESC";
-  const [productResult, imageResult] = await Promise.all([
+  const [productResult, imageResult, variantResult] = await Promise.all([
     db.prepare(productQuery).bind().all(),
     db.prepare("SELECT product_id, object_key, alt_text, sort_order FROM product_images ORDER BY sort_order ASC").bind().all(),
+    db.prepare("SELECT * FROM product_variants ORDER BY created_at ASC").bind().all(),
   ]);
   return {
     products: (productResult.results ?? []).filter((row): row is ProductRow => Boolean(row) && typeof row === "object") as ProductRow[],
     images: (imageResult.results ?? []).filter((row): row is ImageRow => Boolean(row) && typeof row === "object") as ImageRow[],
+    variants: (variantResult.results ?? []).filter((row): row is VariantRow => Boolean(row) && typeof row === "object") as VariantRow[],
   };
 }
 
@@ -279,8 +327,8 @@ export async function listCatalog(includeUnpublished = false): Promise<CatalogIt
   if (!db) {
     return Array.from(memoryCatalog.values()).filter((item) => includeUnpublished || item.status === "active");
   }
-  const { products, images } = await getRows(db, includeUnpublished);
-  return products.map((row) => rowToCatalogItem(row, images));
+  const { products, images, variants } = await getRows(db, includeUnpublished);
+  return products.map((row) => rowToCatalogItem(row, images, variants.filter((variant) => asString(variant["product_id"]) === asString(row["id"]))));
 }
 
 export async function getCatalogBySlug(slug: string, includeUnpublished = false): Promise<CatalogItem | null> {
@@ -298,7 +346,9 @@ export async function getCatalogBySlug(slug: string, includeUnpublished = false)
     .bind(asString(product["id"]))
     .all();
   const images = (imageResult.results ?? []).filter((item): item is ImageRow => Boolean(item) && typeof item === "object") as ImageRow[];
-  return rowToCatalogItem(product, images);
+  const variantResult = await db.prepare("SELECT * FROM product_variants WHERE product_id = ? ORDER BY created_at ASC").bind(asString(product["id"])).all();
+  const variants = (variantResult.results ?? []).filter((item): item is VariantRow => Boolean(item) && typeof item === "object") as VariantRow[];
+  return rowToCatalogItem(product, images, variants);
 }
 
 async function writeAuditLog(
@@ -339,6 +389,7 @@ export async function saveCatalogProduct(input: CatalogProductInput, actorId: nu
       },
       detail: {
         images: product.galleryImages,
+        imageAlts: product.galleryImageAlts,
         description: product.description,
         shortDescription: product.shortDescription,
         features: product.features,
@@ -351,6 +402,18 @@ export async function saveCatalogProduct(input: CatalogProductInput, actorId: nu
         seoTitle: product.seoTitle,
         seoDescription: product.seoDescription,
         publishStatus: product.publishStatus,
+        variantSkus: product.variantSkus.map((variant) => ({
+          id: variant.id ?? crypto.randomUUID(),
+          sku: variant.sku,
+          title: variant.title ?? "",
+          optionValues: variant.optionValues ?? {},
+          ...(variant.price !== undefined ? { price: variant.price } : {}),
+          ...(variant.oldPrice !== undefined ? { oldPrice: variant.oldPrice } : {}),
+          stock: Math.max(0, Math.floor(Number(variant.stock) || 0)),
+          lowStockThreshold: Math.max(0, Math.floor(Number(variant.lowStockThreshold) || 5)),
+          ...(variant.image ? { image: variant.image } : {}),
+          isActive: variant.isActive !== false,
+        })),
       },
       status: product.status,
     };
@@ -363,8 +426,9 @@ export async function saveCatalogProduct(input: CatalogProductInput, actorId: nu
       `INSERT INTO products (
         id, slug, name, brand, category_slug, description, short_description, price, old_price, stock, rating, reviews,
         features_json, specs_json, variants_json, variant_label, best_selling, top_pick, status,
+        sku, product_type, bullet_points_json, search_keywords, published_at, scheduled_for, review_status, return_policy, shipping_notes,
         tags_json, attributes_json, seo_title, seo_description, publish_status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         slug = excluded.slug, name = excluded.name, brand = excluded.brand, category_slug = excluded.category_slug,
         description = excluded.description, short_description = excluded.short_description, price = excluded.price,
@@ -372,6 +436,11 @@ export async function saveCatalogProduct(input: CatalogProductInput, actorId: nu
         features_json = excluded.features_json, specs_json = excluded.specs_json, variants_json = excluded.variants_json,
         variant_label = excluded.variant_label, best_selling = excluded.best_selling, top_pick = excluded.top_pick,
         status = excluded.status, tags_json = excluded.tags_json, attributes_json = excluded.attributes_json,
+        sku = excluded.sku, product_type = excluded.product_type, bullet_points_json = excluded.bullet_points_json,
+        search_keywords = excluded.search_keywords,
+        published_at = CASE WHEN excluded.publish_status = 'published' THEN COALESCE(products.published_at, excluded.published_at) ELSE products.published_at END,
+        scheduled_for = excluded.scheduled_for,
+        review_status = excluded.review_status, return_policy = excluded.return_policy, shipping_notes = excluded.shipping_notes,
         seo_title = excluded.seo_title, seo_description = excluded.seo_description, publish_status = excluded.publish_status,
         updated_at = CURRENT_TIMESTAMP`
     )
@@ -380,6 +449,9 @@ export async function saveCatalogProduct(input: CatalogProductInput, actorId: nu
       product.price, product.oldPrice, product.stock, product.rating, product.reviews,
       JSON.stringify(product.features), JSON.stringify(product.specs), JSON.stringify(product.variants), product.variantLabel,
       product.bestSelling ? 1 : 0, product.topPick ? 1 : 0, product.status,
+      product.sku, product.productType, JSON.stringify(product.bulletPoints), product.searchKeywords,
+      product.publishStatus === "published" ? new Date().toISOString() : null, product.scheduledFor || null,
+      product.reviewStatus, product.returnPolicy, product.shippingNotes,
       JSON.stringify(product.tags), JSON.stringify(product.attributes), product.seoTitle, product.seoDescription, product.publishStatus
     )
     .run();
@@ -388,9 +460,24 @@ export async function saveCatalogProduct(input: CatalogProductInput, actorId: nu
   for (const [index, image] of product.galleryImages.entries()) {
     const objectKey = image.startsWith("/media/") ? decodeURIComponent(image.slice(7)) : image;
     await db
-      .prepare("INSERT INTO product_images (id, product_id, object_key, sort_order) VALUES (?, ?, ?, ?)")
-      .bind(crypto.randomUUID(), product.id, objectKey, index)
+      .prepare("INSERT INTO product_images (id, product_id, object_key, alt_text, sort_order) VALUES (?, ?, ?, ?, ?)")
+      .bind(crypto.randomUUID(), product.id, objectKey, product.galleryImageAlts[index] ?? "", index)
       .run();
+  }
+  await db.prepare("DELETE FROM product_variants WHERE product_id = ?").bind(product.id).run();
+  for (const variant of product.variantSkus) {
+    const sku = variant.sku.trim();
+    if (!sku) continue;
+    await db.prepare(
+      `INSERT INTO product_variants (id, product_id, sku, title, option_values_json, price, old_price, stock, low_stock_threshold, image_key, is_active)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      variant.id || crypto.randomUUID(), product.id, sku, variant.title?.trim() || "", JSON.stringify(variant.optionValues ?? {}),
+      variant.price ?? null, variant.oldPrice ?? null, Math.max(0, Math.floor(Number(variant.stock) || 0)),
+      Math.max(0, Math.floor(Number(variant.lowStockThreshold) || 5)),
+      variant.image?.startsWith("/media/") ? decodeURIComponent(variant.image.slice(7)) : variant.image ?? null,
+      variant.isActive === false ? 0 : 1,
+    ).run();
   }
   await writeAuditLog(db, actorId, "catalog.product.saved", "product", product.id, { slug: product.slug, status: product.status });
   const saved = await getCatalogBySlug(product.slug, true);
@@ -401,12 +488,18 @@ export async function saveCatalogProduct(input: CatalogProductInput, actorId: nu
 export async function deleteCatalogProduct(id: string, actorId: number | string): Promise<void> {
   const db = asDatabase(getD1Database());
   if (!db) {
-    memoryCatalog.delete(id);
+    const existing = memoryCatalog.get(id);
+    if (existing) {
+      memoryCatalog.set(id, {
+        ...existing,
+        status: "archived",
+        detail: { ...existing.detail, catalogStatus: "archived", publishStatus: "archived" },
+      });
+    }
     return;
   }
-  await db.prepare("DELETE FROM product_images WHERE product_id = ?").bind(id).run();
-  await db.prepare("DELETE FROM products WHERE id = ?").bind(id).run();
-  await writeAuditLog(db, actorId, "catalog.product.deleted", "product", id, {});
+  await db.prepare("UPDATE products SET status = 'archived', publish_status = 'archived', updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(id).run();
+  await writeAuditLog(db, actorId, "catalog.product.archived", "product", id, {});
 }
 
 export async function saveSiteSetting(

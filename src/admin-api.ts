@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireAdminUser } from "./auth";
+import { requireAdminUser } from "./auth.ts";
 import {
   deleteCatalogProduct,
   getSiteSettings,
@@ -7,9 +7,10 @@ import {
   saveCatalogProduct,
   saveSiteSetting,
   type CatalogProductInput,
-} from "./catalog-db";
-import { getAllOrders, getOrderById, updateOrderStatus, type OrderRecord } from "./db";
-import { getProductMediaBucket } from "./media";
+} from "./catalog-db.ts";
+import { getAllOrders, getOrderById, updateOrderStatus, type OrderRecord } from "./db.ts";
+import { getProductMediaBucket } from "./media.ts";
+import { z } from "zod";
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"]);
@@ -43,6 +44,30 @@ function safeFileName(name: string, contentType: string): string {
 type SerializableValue = string | number | boolean | null | SerializableValue[] | { [key: string]: SerializableValue };
 type SiteSettings = Record<string, SerializableValue>;
 
+const catalogProductValidator = z.object({
+  name: z.string().trim().min(1).max(240),
+  category: z.string().trim().min(1).max(120),
+  price: z.number().finite().min(0),
+  oldPrice: z.number().finite().min(0).optional(),
+  stock: z.number().int().min(0).max(1_000_000).optional(),
+  lowStockThreshold: z.number().int().min(0).max(1_000_000).optional(),
+  slug: z.string().max(120).optional(),
+  sku: z.string().max(120).optional(),
+  productType: z.enum(["physical", "digital", "service"]).optional(),
+  variantSkus: z.array(z.object({
+    id: z.string().max(120).optional(),
+    sku: z.string().trim().min(1).max(120),
+    title: z.string().max(240).optional(),
+    optionValues: z.record(z.string().max(80), z.string().max(240)).optional(),
+    price: z.number().finite().min(0).optional(),
+    oldPrice: z.number().finite().min(0).optional(),
+    stock: z.number().int().min(0).max(1_000_000).optional(),
+    lowStockThreshold: z.number().int().min(0).max(1_000_000).optional(),
+    image: z.string().max(1024).optional(),
+    isActive: z.boolean().optional(),
+  })).max(100).optional(),
+}).passthrough();
+
 export const getPublicCatalog = createServerFn({ method: "GET" }).handler(async (): Promise<{ catalog: Awaited<ReturnType<typeof listCatalog>>; settings: SiteSettings }> => {
   const catalog = await listCatalog(false);
   return { catalog, settings: (await getSiteSettings()) as SiteSettings };
@@ -55,7 +80,7 @@ export const getAdminDashboard = createServerFn({ method: "GET" }).handler(async
 });
 
 export const saveAdminProduct = createServerFn({ method: "POST" })
-  .validator((data: CatalogProductInput) => data)
+  .validator((data: CatalogProductInput) => catalogProductValidator.parse(data) as CatalogProductInput)
   .handler(async ({ data }) => {
     const user = await requireAdminUser();
     const item = await saveCatalogProduct(data, user.id);
@@ -79,8 +104,16 @@ export const importAdminCatalog = createServerFn({ method: "POST" })
       throw new Error("Import between 1 and 250 products at a time.");
     }
     const saved = [];
-    for (const product of data.products) saved.push(await saveCatalogProduct(product, user.id));
+    for (const product of data.products) saved.push(await saveCatalogProduct(catalogProductValidator.parse(product) as CatalogProductInput, user.id));
     return { saved };
+  });
+
+export const getAdminProduct = createServerFn({ method: "GET" })
+  .validator((data: { id: string }) => z.object({ id: z.string().trim().min(1).max(120) }).parse(data))
+  .handler(async ({ data }) => {
+    await requireAdminUser();
+    const catalog = await listCatalog(true);
+    return catalog.find((item) => item.product.id === data.id) ?? null;
   });
 
 export const updateAdminOrderStatus = createServerFn({ method: "POST" })

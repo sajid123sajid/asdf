@@ -15,10 +15,10 @@ import {
   type OrderRecord,
   type UserRecord,
   type UserRole,
-} from "./db";
-import { getCatalogBySlug } from "./catalog-db";
-import { getProduct } from "./components/zupona/data";
-import { createSslcommerzPayment } from "./payment";
+} from "./db.ts";
+import { getCatalogBySlug } from "./catalog-db.ts";
+import { getProduct } from "./components/zupona/data.ts";
+import { createSslcommerzPayment } from "./payment.ts";
 import { z } from "zod";
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
@@ -66,19 +66,42 @@ export interface SafeUser {
 }
 
 const ADMIN_ROLES = new Set<UserRole>(["owner"]);
-const DEFAULT_ADMIN_EMAILS = new Set(["sajedaakter361@gmail.com"]);
-
-export function isAdminEmail(email?: string | null): boolean {
-  const normalized = email?.trim().toLowerCase();
-  return Boolean(normalized && getConfiguredAdminEmails().has(normalized));
-}
 
 export function isAdminUser(user?: Pick<SafeUser, "email" | "role"> | null): boolean {
-  return Boolean(user && ADMIN_ROLES.has(user.role) && isAdminEmail(user.email));
+  return Boolean(user && ADMIN_ROLES.has(user.role));
 }
 
 async function loadCookieHelpers() {
   return await import("@tanstack/react-start/server");
+}
+
+async function getCookieHelpers() {
+  try {
+    return await loadCookieHelpers();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/No StartEvent found in AsyncLocalStorage|server runtime/i.test(message)) {
+      return {
+        getCookie: () => undefined,
+        setCookie: () => undefined,
+        deleteCookie: () => undefined,
+      } as const;
+    }
+    throw error;
+  }
+}
+
+async function readSessionCookie(name: string): Promise<string | undefined> {
+  const { getCookie } = await getCookieHelpers();
+  try {
+    return getCookie(name);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/No StartEvent found in AsyncLocalStorage|server runtime/i.test(message)) {
+      return undefined;
+    }
+    throw error;
+  }
 }
 
 function getGoogleConfig() {
@@ -153,19 +176,7 @@ async function fetchGoogleUserInfo(accessToken: string) {
 }
 
 function configuredRoleFor(email: string): UserRole {
-  return getConfiguredAdminEmails().has(email.toLowerCase()) ? "owner" : "customer";
-}
-
-function getConfiguredAdminEmails() {
-  const env = (globalThis as { __CLOUDFLARE_ENV__?: { ADMIN_EMAILS?: unknown } }).__CLOUDFLARE_ENV__;
-  const configuredEmails = typeof env?.ADMIN_EMAILS === "string" ? env.ADMIN_EMAILS : "";
-  return new Set(
-    configuredEmails
-      .split(",")
-      .map((value) => value.trim().toLowerCase())
-      .filter(Boolean)
-      .concat([...DEFAULT_ADMIN_EMAILS])
-  );
+  return "customer";
 }
 
 function toSafeUser(user: UserRecord): SafeUser {
@@ -183,8 +194,15 @@ function toSafeUser(user: UserRecord): SafeUser {
 async function signInUser(user: UserRecord): Promise<{ user: SafeUser; sessionId: string }> {
   const safeUser = toSafeUser(user);
   const session = await createSession(user.id);
-  const { setCookie } = await loadCookieHelpers();
-  setCookie(SESSION_COOKIE, session.id, getCookieOptions());
+  const { setCookie } = await getCookieHelpers();
+  try {
+    setCookie(SESSION_COOKIE, session.id, getCookieOptions());
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!/No StartEvent found in AsyncLocalStorage|server runtime/i.test(message)) {
+      throw error;
+    }
+  }
   return { user: safeUser, sessionId: session.id };
 }
 
@@ -255,7 +273,7 @@ export const getGoogleAuthUrl = createServerFn({ method: "GET" }).handler(async 
   }
 
   const state = crypto.randomUUID();
-  const { setCookie } = await loadCookieHelpers();
+  const { setCookie } = await getCookieHelpers();
   setCookie(GOOGLE_STATE_COOKIE, state, {
     ...COOKIE_OPTIONS,
     httpOnly: true,
@@ -283,8 +301,16 @@ export const completeGoogleLogin = createServerFn({ method: "POST" })
       throw new Error("The Google callback is missing required data.");
     }
 
-    const { getCookie, deleteCookie } = await loadCookieHelpers();
-    const storedState = getCookie(GOOGLE_STATE_COOKIE);
+    const { getCookie, deleteCookie } = await getCookieHelpers();
+    let storedState: string | undefined;
+    try {
+      storedState = getCookie(GOOGLE_STATE_COOKIE);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!/No StartEvent found in AsyncLocalStorage|server runtime/i.test(message)) {
+        throw error;
+      }
+    }
 
     if (!storedState || storedState !== state) {
       throw new Error("Google login could not be verified.");
@@ -334,8 +360,7 @@ export const completeGoogleLogin = createServerFn({ method: "POST" })
  */
 export const getCurrentUser = createServerFn({ method: "GET" }).handler(
   async (): Promise<SafeUser | null> => {
-    const { getCookie } = await loadCookieHelpers();
-    const sessionId = getCookie(SESSION_COOKIE);
+    const sessionId = await readSessionCookie(SESSION_COOKIE);
     if (!sessionId) return null;
 
     const user = await getUserBySession(sessionId);
@@ -346,8 +371,7 @@ export const getCurrentUser = createServerFn({ method: "GET" }).handler(
 
 /** Server-only guard. Every catalog and order mutation must pass through this check. */
 export async function requireAdminUser(): Promise<SafeUser> {
-  const { getCookie } = await loadCookieHelpers();
-  const sessionId = getCookie(SESSION_COOKIE);
+  const sessionId = await readSessionCookie(SESSION_COOKIE);
   const user = sessionId ? await getUserBySession(sessionId) : null;
   if (!user) throw new Error("Sign in with an administrator account to continue.");
   const safeUser = toSafeUser(user);
@@ -361,10 +385,17 @@ export async function requireAdminUser(): Promise<SafeUser> {
  * Log out user by clearing session cookie
  */
 export const logout = createServerFn({ method: "POST" }).handler(async () => {
-  const { getCookie, deleteCookie } = await loadCookieHelpers();
-  const sessionId = getCookie(SESSION_COOKIE);
+  const { deleteCookie } = await getCookieHelpers();
+  const sessionId = await readSessionCookie(SESSION_COOKIE);
   if (sessionId) await deleteSession(sessionId);
-  deleteCookie(SESSION_COOKIE, { path: "/" });
+  try {
+    deleteCookie(SESSION_COOKIE, { path: "/" });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!/No StartEvent found in AsyncLocalStorage|server runtime/i.test(message)) {
+      throw error;
+    }
+  }
   return { success: true };
 });
 
@@ -376,8 +407,7 @@ export const updateProfile = createServerFn({ method: "POST" })
     (data: { name?: string; phone?: string; address?: string }) => data
   )
   .handler(async ({ data }) => {
-    const { getCookie } = await loadCookieHelpers();
-    const sessionId = getCookie(SESSION_COOKIE);
+    const sessionId = await readSessionCookie(SESSION_COOKIE);
     const currentUser = sessionId ? await getUserBySession(sessionId) : null;
     if (!currentUser) {
       throw new Error("You must be signed in to update your profile.");

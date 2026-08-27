@@ -72,10 +72,6 @@ export function Header() {
             <Link to="/sell" className="hover:text-gold">
               Sell on Zupona
             </Link>
-            <Link to="/admin" className="flex items-center gap-1.5 font-bold text-gold-deep hover:underline">
-              <span className="h-2 w-2 rounded-full bg-gold animate-pulse" />
-              Admin Panel
-            </Link>
           </nav>
           <button
             type="button"
@@ -381,15 +377,6 @@ export function Header() {
                 className="block rounded-md px-2 py-2 text-sm font-semibold text-gold hover:bg-secondary"
               >
                 Today's Deals
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/admin"
-                onClick={() => setMenuOpen(false)}
-                className="block rounded-md bg-gold/10 px-2 py-2 text-sm font-bold text-gold-deep hover:bg-gold hover:text-primary-foreground"
-              >
-                ⚡ Store Admin &amp; Products
               </Link>
             </li>
           </ul>

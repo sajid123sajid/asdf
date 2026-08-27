@@ -94,12 +94,6 @@ function CategoryPage() {
         <div className="mt-8 rounded-xl border border-border bg-card p-12 text-center">
           <p className="text-base font-semibold text-foreground">No products in this category yet</p>
           <p className="mt-1 text-xs text-muted-foreground">Products added in this category will appear here instantly.</p>
-          <Link
-            to="/admin"
-            className="mt-4 inline-flex items-center rounded-md bg-gold px-4 py-2 text-xs font-bold text-primary-foreground hover:bg-gold-deep"
-          >
-            Add Products in Admin
-          </Link>
         </div>
       ) : (
         <ul className="mt-5 grid grid-cols-2 items-stretch gap-2 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">

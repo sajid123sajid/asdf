@@ -37,6 +37,7 @@ import { useShop } from "@/components/zupona/shop-store";
 import {
   type Product,
   type ProductDetail,
+  type ProductVariant,
   formatTk,
   categories,
   imagePresets,
@@ -54,11 +55,11 @@ import { getCurrentUser } from "@/auth";
 import type { OrderRecord } from "@/db";
 
 export const Route = createFileRoute("/admin")({
-  beforeLoad: async () => {
+  beforeLoad: async ({ location }) => {
     const user = await getCurrentUser();
-    if (!user || user.role !== "owner") {
-      throw redirect({ to: "/account" });
-    }
+    if (!user) throw redirect({ to: "/login" });
+    if (user.role !== "owner") throw redirect({ to: "/account" });
+    if (location.pathname === "/admin") throw redirect({ to: "/admin/dashboard" });
   },
   head: () => ({
     meta: [
@@ -89,7 +90,10 @@ export function AdminPage() {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedStockStatus, setSelectedStockStatus] = useState<"all" | "in" | "low" | "out">("all");
   const [selectedBadge, setSelectedBadge] = useState<"all" | "bestSelling" | "topPick">("all");
+  const [selectedPublishStatus, setSelectedPublishStatus] = useState<"all" | "draft" | "published" | "scheduled" | "archived">("all");
   const [sortBy, setSortBy] = useState<"newest" | "price-asc" | "price-desc" | "stock" | "name">("newest");
+  const [productPage, setProductPage] = useState(1);
+  const productsPerPage = 10;
 
   // Editing state for Product Studio
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -105,6 +109,19 @@ export function AdminPage() {
     price: 990,
     oldPrice: 1290,
     stock: 20,
+    lowStockThreshold: 5,
+    sku: "",
+    productType: "physical" as "physical" | "digital" | "service",
+    shortDescription: "",
+    bulletPoints: [] as string[],
+    tags: [] as string[],
+    seoTitle: "",
+    seoDescription: "",
+    searchKeywords: "",
+    returnPolicy: "",
+    shippingNotes: "",
+    publishStatus: "draft" as "draft" | "review" | "published" | "scheduled" | "archived",
+    scheduledFor: "",
     rating: 4.8,
     reviews: 24,
     image: "",
@@ -120,7 +137,9 @@ export function AdminPage() {
     ],
     variants: ["Standard", "Pack of 2"],
     variantLabel: "Select option",
+    variantSkus: [] as ProductVariant[],
     galleryImages: [] as string[],
+    galleryImageAlts: [] as string[],
   });
 
   const [featureInput, setFeatureInput] = useState("");
@@ -178,6 +197,16 @@ export function AdminPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (!studioOpen) return;
+    const warnBeforeLeave = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warnBeforeLeave);
+    return () => window.removeEventListener("beforeunload", warnBeforeLeave);
+  }, [studioOpen]);
+
   // Metric computations
   const metrics = useMemo(() => {
     const totalProducts = products.length;
@@ -216,8 +245,9 @@ export function AdminPage() {
           selectedBadge === "all" ||
           (selectedBadge === "bestSelling" && p.bestSelling) ||
           (selectedBadge === "topPick" && p.topPick);
+        const matchesPublishStatus = selectedPublishStatus === "all" || getProductDetail(p).publishStatus === selectedPublishStatus;
 
-        return matchesQuery && matchesCat && matchesStock && matchesBadge;
+        return matchesQuery && matchesCat && matchesStock && matchesBadge && matchesPublishStatus;
       })
       .sort((a, b) => {
         if (sortBy === "price-asc") return a.price - b.price;
@@ -226,7 +256,9 @@ export function AdminPage() {
         if (sortBy === "name") return a.name.localeCompare(b.name);
         return Number(b.id) - Number(a.id);
       });
-  }, [products, searchQuery, selectedCategory, selectedStockStatus, selectedBadge, sortBy]);
+  }, [products, searchQuery, selectedCategory, selectedStockStatus, selectedBadge, selectedPublishStatus, sortBy]);
+  const visibleProducts = filteredProducts.slice((productPage - 1) * productsPerPage, productPage * productsPerPage);
+  const productPageCount = Math.max(1, Math.ceil(filteredProducts.length / productsPerPage));
 
   // Open Studio for adding a new product
   const handleOpenAdd = () => {
@@ -240,6 +272,19 @@ export function AdminPage() {
       price: 1200,
       oldPrice: 1600,
       stock: 25,
+      lowStockThreshold: 5,
+      sku: "",
+      productType: "physical",
+      shortDescription: "",
+      bulletPoints: [],
+      tags: [],
+      seoTitle: "",
+      seoDescription: "",
+      searchKeywords: "",
+      returnPolicy: "",
+      shippingNotes: "",
+      publishStatus: "draft",
+      scheduledFor: "",
       rating: 4.8,
       reviews: 18,
       image: imagePresets[0]?.url || "",
@@ -259,7 +304,9 @@ export function AdminPage() {
       ],
       variants: ["Standard", "Deluxe Edition"],
       variantLabel: "Select option",
+      variantSkus: [],
       galleryImages: [],
+      galleryImageAlts: [],
     });
     setStudioOpen(true);
   };
@@ -277,6 +324,19 @@ export function AdminPage() {
       price: product.price,
       oldPrice: product.oldPrice,
       stock: product.stock ?? detail.stock ?? 15,
+      lowStockThreshold: 5,
+      sku: detail.sku || "",
+      productType: detail.productType || "physical",
+      shortDescription: detail.shortDescription || "",
+      bulletPoints: detail.bulletPoints || [],
+      tags: detail.tags || [],
+      seoTitle: detail.seoTitle || "",
+      seoDescription: detail.seoDescription || "",
+      searchKeywords: detail.searchKeywords || "",
+      returnPolicy: detail.returnPolicy || "",
+      shippingNotes: detail.shippingNotes || "",
+      publishStatus: detail.publishStatus || "draft",
+      scheduledFor: detail.scheduledFor || "",
       rating: product.rating,
       reviews: product.reviews,
       image: product.image,
@@ -287,7 +347,9 @@ export function AdminPage() {
       specs: detail.specs || [],
       variants: detail.variants || [],
       variantLabel: detail.variantLabel || "Select option",
+      variantSkus: detail.variantSkus || [],
       galleryImages: detail.images || [product.image],
+      galleryImageAlts: detail.imageAlts || [],
     });
     setStudioOpen(true);
   };
@@ -324,8 +386,23 @@ export function AdminPage() {
           features: detail.features,
           specs: detail.specs,
           variants: detail.variants,
+          variantSkus: detail.variantSkus ?? [],
           variantLabel: detail.variantLabel,
           galleryImages: detail.images,
+          galleryImageAlts: detail.imageAlts ?? [],
+          sku: detail.sku ?? "",
+          productType: detail.productType ?? "physical",
+          shortDescription: detail.shortDescription ?? "",
+          bulletPoints: detail.bulletPoints ?? [],
+          tags: detail.tags ?? [],
+          seoTitle: detail.seoTitle ?? "",
+          seoDescription: detail.seoDescription ?? "",
+          searchKeywords: detail.searchKeywords ?? "",
+          scheduledFor: detail.scheduledFor ?? "",
+          reviewStatus: detail.reviewStatus ?? "approved",
+          returnPolicy: detail.returnPolicy ?? "",
+          shippingNotes: detail.shippingNotes ?? "",
+          publishStatus: detail.publishStatus ?? "draft",
         },
       });
       applyPersistedCatalogItem(saved);
@@ -344,6 +421,8 @@ export function AdminPage() {
     }
 
     const finalSlug = form.slug.trim() || form.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+    const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+    const publishStatus = submitter?.value === "published" ? "published" : form.publishStatus;
 
     const productPayload: Omit<Product, "discount"> = {
       id: editingProduct ? editingProduct.id : form.id || String(Date.now()),
@@ -381,6 +460,21 @@ export function AdminPage() {
           variants: detailPayload.variants,
           variantLabel: detailPayload.variantLabel,
           galleryImages: detailPayload.images,
+          sku: form.sku,
+          productType: form.productType,
+          lowStockThreshold: form.lowStockThreshold,
+          shortDescription: form.shortDescription,
+          bulletPoints: form.bulletPoints,
+          tags: form.tags,
+          seoTitle: form.seoTitle,
+          seoDescription: form.seoDescription,
+          searchKeywords: form.searchKeywords,
+          returnPolicy: form.returnPolicy,
+          shippingNotes: form.shippingNotes,
+          publishStatus,
+          scheduledFor: form.scheduledFor,
+          variantSkus: form.variantSkus,
+          galleryImageAlts: form.galleryImageAlts,
         },
       });
       applyPersistedCatalogItem(saved);
@@ -403,8 +497,23 @@ export function AdminPage() {
           features: detail.features,
           specs: detail.specs,
           variants: detail.variants,
+          variantSkus: detail.variantSkus ?? [],
           variantLabel: detail.variantLabel,
           galleryImages: detail.images,
+          galleryImageAlts: detail.imageAlts ?? [],
+          sku: detail.sku ?? "",
+          productType: detail.productType ?? "physical",
+          shortDescription: detail.shortDescription ?? "",
+          bulletPoints: detail.bulletPoints ?? [],
+          tags: detail.tags ?? [],
+          seoTitle: detail.seoTitle ?? "",
+          seoDescription: detail.seoDescription ?? "",
+          searchKeywords: detail.searchKeywords ?? "",
+          scheduledFor: detail.scheduledFor ?? "",
+          reviewStatus: detail.reviewStatus ?? "approved",
+          returnPolicy: detail.returnPolicy ?? "",
+          shippingNotes: detail.shippingNotes ?? "",
+          publishStatus: detail.publishStatus ?? "draft",
         },
       });
       updateStock(product.id, nextStock, true);
@@ -415,10 +524,12 @@ export function AdminPage() {
   };
 
   const handleDeleteProduct = async (product: Product) => {
-    if (!window.confirm(`Are you sure you want to delete "${product.name}"?`)) return;
+    if (!window.confirm(`Archive "${product.name}"? It will remain available in the admin catalog but no longer appear in the active storefront.`)) return;
     try {
       await deleteAdminProduct({ data: { id: product.id } });
-      deleteProduct(product.id);
+      const detail = getProductDetail(product);
+      updateProduct(product.id, product, { ...detail, catalogStatus: "archived", publishStatus: "archived" });
+      toast.success(`Product "${product.name}" archived`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not delete this product.");
     }
@@ -444,31 +555,28 @@ export function AdminPage() {
     }
   };
 
-  const handleProductImageUpload = async (file: File | undefined) => {
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      toast.error("Choose an image file.");
-      return;
-    }
-    if (file.size > 8 * 1024 * 1024) {
-      toast.error("Images must be smaller than 8 MB.");
+  const handleProductImageUpload = async (files: FileList | null | undefined) => {
+    if (!files?.length) return;
+    const selectedFiles = Array.from(files);
+    if (selectedFiles.some((file) => !file.type.startsWith("image/") || file.size > 8 * 1024 * 1024)) {
+      toast.error("Choose images smaller than 8 MB.");
       return;
     }
     setUploadingImage(true);
     try {
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onerror = () => reject(new Error("Could not read this image."));
-        reader.onload = () => resolve(String(reader.result));
-        reader.readAsDataURL(file);
-      });
-      const uploaded = await uploadProductMedia({ data: { fileName: file.name, dataUrl } });
-      setForm((current) => ({
-        ...current,
-        image: uploaded.url,
-        galleryImages: Array.from(new Set([...current.galleryImages, uploaded.url])),
-      }));
-      toast.success("Image uploaded to Cloudflare R2.");
+      const uploadedImages: string[] = [];
+      for (const file of selectedFiles) {
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onerror = () => reject(new Error("Could not read this image."));
+          reader.onload = () => resolve(String(reader.result));
+          reader.readAsDataURL(file);
+        });
+        const uploaded = await uploadProductMedia({ data: { fileName: file.name, dataUrl } });
+        uploadedImages.push(uploaded.url);
+      }
+      setForm((current) => ({ ...current, image: current.image || uploadedImages[0] || "", galleryImages: Array.from(new Set([...current.galleryImages, ...uploadedImages])), galleryImageAlts: [...current.galleryImageAlts, ...uploadedImages.map(() => "")] }));
+      toast.success(`${uploadedImages.length} image${uploadedImages.length === 1 ? "" : "s"} uploaded to Cloudflare R2.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not upload image.");
     } finally {
@@ -853,6 +961,18 @@ export function AdminPage() {
                 </select>
 
                 <select
+                  value={selectedPublishStatus}
+                  onChange={(e) => setSelectedPublishStatus(e.target.value as typeof selectedPublishStatus)}
+                  className="h-10 rounded-xl border border-border bg-background px-3 text-xs text-foreground outline-none focus:border-gold"
+                >
+                  <option value="all">All Publish Statuses</option>
+                  <option value="draft">Draft</option>
+                  <option value="published">Published</option>
+                  <option value="scheduled">Scheduled</option>
+                  <option value="archived">Archived</option>
+                </select>
+
+                <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as any)}
                   className="h-10 rounded-xl border border-border bg-background px-3 text-xs text-foreground outline-none focus:border-gold"
@@ -873,6 +993,7 @@ export function AdminPage() {
                   <tr>
                     <th className="px-3.5 py-3">Product</th>
                     <th className="px-3 py-3">Category</th>
+                    <th className="px-3 py-3">Status</th>
                     <th className="px-3 py-3">Price &amp; Discount</th>
                     <th className="px-3 py-3">Stock Units</th>
                     <th className="px-3 py-3">Badges</th>
@@ -882,12 +1003,13 @@ export function AdminPage() {
                 <tbody className="divide-y divide-border/60 bg-card">
                   {filteredProducts.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-12 text-center text-muted-foreground">
+                      <td colSpan={7} className="py-12 text-center text-muted-foreground">
                         No products match the selected filters.
                       </td>
                     </tr>
                   ) : (
-                    filteredProducts.map((p) => {
+                    visibleProducts.map((p) => {
+                      const detail = getProductDetail(p);
                       const stock = p.stock ?? 15;
                       const isLow = stock > 0 && stock <= 5;
                       const isOut = stock === 0;
@@ -910,7 +1032,7 @@ export function AdminPage() {
                                   <span>{p.brand}</span>
                                   <span>•</span>
                                   <span className="font-mono text-[10px] text-gold-deep">
-                                    SKU: ZUP-{String(p.id).padStart(4, "0")}
+                                    SKU: {detail.sku || "Not set"}
                                   </span>
                                 </div>
                               </div>
@@ -921,6 +1043,13 @@ export function AdminPage() {
                           <td className="px-3 py-3">
                             <span className="inline-flex rounded-full bg-secondary px-2.5 py-1 text-[10px] font-semibold text-foreground">
                               {categories.find((c) => c.slug === p.category)?.name ?? p.category}
+                            </span>
+                          </td>
+
+                          {/* Publish status */}
+                          <td className="px-3 py-3">
+                            <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold ${detail.publishStatus === "published" ? "bg-emerald-500/10 text-emerald-700" : detail.publishStatus === "archived" ? "bg-slate-200 text-slate-600" : "bg-amber-500/10 text-amber-700"}`}>
+                              {detail.publishStatus || "draft"}
                             </span>
                           </td>
 
@@ -1043,8 +1172,12 @@ export function AdminPage() {
             </div>
 
             <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-              <span>Showing {filteredProducts.length} of {products.length} products</span>
-              <span>All changes automatically sync to customer pages instantly.</span>
+              <span>Showing {Math.min((productPage - 1) * productsPerPage + 1, filteredProducts.length)}-{Math.min(productPage * productsPerPage, filteredProducts.length)} of {filteredProducts.length} products</span>
+              <div className="flex items-center gap-2">
+                <button type="button" disabled={productPage <= 1} onClick={() => setProductPage((page) => page - 1)} className="rounded border border-border px-2 py-1 disabled:opacity-40">Previous</button>
+                <span>Page {productPage} of {productPageCount}</span>
+                <button type="button" disabled={productPage >= productPageCount} onClick={() => setProductPage((page) => page + 1)} className="rounded border border-border px-2 py-1 disabled:opacity-40">Next</button>
+              </div>
             </div>
           </div>
         )}
@@ -1420,6 +1553,21 @@ export function AdminPage() {
                         </div>
                       </div>
 
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-xs font-semibold text-foreground">SKU</label>
+                          <input type="text" value={form.sku} onChange={(e) => setForm((prev) => ({ ...prev, sku: e.target.value }))} placeholder="e.g. ZUP-1001" className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2 text-xs font-mono text-foreground outline-none focus:border-gold" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-foreground">Product Type</label>
+                          <select value={form.productType} onChange={(e) => setForm((prev) => ({ ...prev, productType: e.target.value as typeof prev.productType }))} className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground outline-none focus:border-gold">
+                            <option value="physical">Physical</option>
+                            <option value="digital">Digital</option>
+                            <option value="service">Service</option>
+                          </select>
+                        </div>
+                      </div>
+
                       <div>
                         <label className="block text-xs font-semibold text-foreground">URL Slug (identifier)</label>
                         <input
@@ -1429,6 +1577,27 @@ export function AdminPage() {
                           placeholder="e.g. rose-gold-chronograph"
                           className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2 text-xs font-mono text-muted-foreground outline-none focus:border-gold"
                         />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-xs font-semibold text-foreground">Publish status</label>
+                          <select value={form.publishStatus} onChange={(e) => setForm((prev) => ({ ...prev, publishStatus: e.target.value as typeof prev.publishStatus }))} className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground outline-none focus:border-gold">
+                            <option value="draft">Draft</option>
+                            <option value="published">Published</option>
+                            <option value="scheduled">Scheduled</option>
+                            <option value="archived">Archived</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-foreground">Scheduled for</label>
+                          <input type="datetime-local" value={form.scheduledFor} onChange={(e) => setForm((prev) => ({ ...prev, scheduledFor: e.target.value }))} className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground outline-none focus:border-gold" />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-foreground">Low-stock threshold</label>
+                        <input type="number" min={0} value={form.lowStockThreshold} onChange={(e) => setForm((prev) => ({ ...prev, lowStockThreshold: Number(e.target.value) }))} className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground outline-none focus:border-gold" />
                       </div>
                     </div>
                   </div>
@@ -1523,7 +1692,8 @@ export function AdminPage() {
                           type="file"
                           accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
                           disabled={uploadingImage}
-                          onChange={(event) => void handleProductImageUpload(event.target.files?.[0])}
+                          multiple
+                          onChange={(event) => void handleProductImageUpload(event.target.files)}
                           className="sr-only"
                         />
                       </label>
@@ -1540,6 +1710,7 @@ export function AdminPage() {
                                   onClick={() => setForm((current) => ({
                                     ...current,
                                     galleryImages: current.galleryImages.filter((_, imageIndex) => imageIndex !== index),
+                                    galleryImageAlts: current.galleryImageAlts.filter((_, imageIndex) => imageIndex !== index),
                                     image: current.image === image ? (current.galleryImages.filter((_, imageIndex) => imageIndex !== index)[0] ?? "") : current.image,
                                   }))}
                                   className="absolute right-0 top-0 rounded-bl bg-foreground/75 p-0.5 text-primary-foreground hover:bg-sale"
@@ -1548,6 +1719,11 @@ export function AdminPage() {
                                   <X className="h-3 w-3" />
                                 </button>
                               </div>
+                            ))}
+                          </div>
+                          <div className="mt-2 space-y-1.5">
+                            {form.galleryImages.map((image, index) => (
+                              <input key={`${image}-alt-${index}`} type="text" value={form.galleryImageAlts[index] ?? ""} onChange={(event) => setForm((current) => ({ ...current, galleryImageAlts: current.galleryImageAlts.map((alt, altIndex) => altIndex === index ? event.target.value : alt) }))} placeholder={`Alt text for image ${index + 1}`} className="w-full rounded border border-border bg-card px-2 py-1 text-[11px]" />
                             ))}
                           </div>
                         </div>
@@ -1602,6 +1778,47 @@ export function AdminPage() {
                           placeholder="Describe the quality, materials, and benefits..."
                           className="mt-1 w-full rounded-lg border border-border bg-card p-3 text-xs text-foreground outline-none focus:border-gold"
                         />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-foreground">Short description</label>
+                        <textarea rows={2} value={form.shortDescription} onChange={(e) => setForm((prev) => ({ ...prev, shortDescription: e.target.value }))} className="mt-1 w-full rounded-lg border border-border bg-card p-3 text-xs text-foreground outline-none focus:border-gold" />
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div>
+                          <label className="block text-xs font-semibold text-foreground">Bullet points</label>
+                          <textarea rows={4} value={form.bulletPoints.join("\n")} onChange={(e) => setForm((prev) => ({ ...prev, bulletPoints: e.target.value.split("\n").map((value) => value.trim()).filter(Boolean) }))} placeholder="One point per line" className="mt-1 w-full rounded-lg border border-border bg-card p-3 text-xs text-foreground outline-none focus:border-gold" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-foreground">Tags</label>
+                          <textarea rows={4} value={form.tags.join(", ")} onChange={(e) => setForm((prev) => ({ ...prev, tags: e.target.value.split(",").map((value) => value.trim()).filter(Boolean) }))} placeholder="fashion, premium, new" className="mt-1 w-full rounded-lg border border-border bg-card p-3 text-xs text-foreground outline-none focus:border-gold" />
+                        </div>
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div>
+                          <label className="block text-xs font-semibold text-foreground">Return policy</label>
+                          <textarea rows={2} value={form.returnPolicy} onChange={(e) => setForm((prev) => ({ ...prev, returnPolicy: e.target.value }))} className="mt-1 w-full rounded-lg border border-border bg-card p-3 text-xs text-foreground outline-none focus:border-gold" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-foreground">Shipping notes</label>
+                          <textarea rows={2} value={form.shippingNotes} onChange={(e) => setForm((prev) => ({ ...prev, shippingNotes: e.target.value }))} className="mt-1 w-full rounded-lg border border-border bg-card p-3 text-xs text-foreground outline-none focus:border-gold" />
+                        </div>
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div>
+                          <label className="block text-xs font-semibold text-foreground">SEO title</label>
+                          <input type="text" value={form.seoTitle} onChange={(e) => setForm((prev) => ({ ...prev, seoTitle: e.target.value }))} className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground outline-none focus:border-gold" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-foreground">Search keywords</label>
+                          <input type="text" value={form.searchKeywords} onChange={(e) => setForm((prev) => ({ ...prev, searchKeywords: e.target.value }))} className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground outline-none focus:border-gold" />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-foreground">SEO description</label>
+                        <textarea rows={2} value={form.seoDescription} onChange={(e) => setForm((prev) => ({ ...prev, seoDescription: e.target.value }))} className="mt-1 w-full rounded-lg border border-border bg-card p-3 text-xs text-foreground outline-none focus:border-gold" />
                       </div>
 
                       {/* Features */}
@@ -1720,6 +1937,29 @@ export function AdminPage() {
                             </span>
                           ))}
                         </div>
+
+                        <div className="mt-4 border-t border-border pt-3">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-semibold text-foreground">Structured variants</label>
+                            <button type="button" onClick={() => setForm((prev) => ({ ...prev, variantSkus: [...prev.variantSkus, { id: crypto.randomUUID(), sku: "", title: "", optionValues: {}, stock: 0, lowStockThreshold: 5, isActive: true }] }))} className="rounded bg-secondary px-2 py-1 text-[10px] font-bold text-foreground hover:bg-gold hover:text-primary-foreground">Add variant</button>
+                          </div>
+                          <div className="mt-2 space-y-2">
+                            {form.variantSkus.map((variant, index) => (
+                              <div key={variant.id} className="grid gap-2 rounded-lg border border-border bg-card p-2 sm:grid-cols-6">
+                                <input value={variant.title} placeholder="Option" onChange={(e) => setForm((prev) => ({ ...prev, variantSkus: prev.variantSkus.map((item, itemIndex) => itemIndex === index ? { ...item, title: e.target.value } : item) }))} className="rounded border border-border px-2 py-1 text-xs" />
+                                <input value={variant.sku} placeholder="SKU" onChange={(e) => setForm((prev) => ({ ...prev, variantSkus: prev.variantSkus.map((item, itemIndex) => itemIndex === index ? { ...item, sku: e.target.value } : item) }))} className="rounded border border-border px-2 py-1 text-xs font-mono" />
+                                <input value={JSON.stringify(variant.optionValues)} placeholder='{"Color":"Black"}' onChange={(e) => { try { const parsed = JSON.parse(e.target.value) as unknown; if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) setForm((prev) => ({ ...prev, variantSkus: prev.variantSkus.map((item, itemIndex) => itemIndex === index ? { ...item, optionValues: Object.fromEntries(Object.entries(parsed).filter(([, value]) => typeof value === "string")) } : item) })); } catch { /* wait for valid option JSON */ } }} className="rounded border border-border px-2 py-1 text-xs" />
+                                <input type="number" min={0} value={variant.price ?? ""} placeholder="Price" onChange={(e) => setForm((prev) => ({ ...prev, variantSkus: prev.variantSkus.map((item, itemIndex) => { if (itemIndex !== index) return item; const next = { ...item }; if (e.target.value === "") delete next.price; else next.price = Number(e.target.value); return next; }) }))} className="rounded border border-border px-2 py-1 text-xs" />
+                                <input type="number" min={0} value={variant.oldPrice ?? ""} placeholder="Old price" onChange={(e) => setForm((prev) => ({ ...prev, variantSkus: prev.variantSkus.map((item, itemIndex) => { if (itemIndex !== index) return item; const next = { ...item }; if (e.target.value === "") delete next.oldPrice; else next.oldPrice = Number(e.target.value); return next; }) }))} className="rounded border border-border px-2 py-1 text-xs" />
+                                <input type="number" min={0} value={variant.stock} placeholder="Stock" onChange={(e) => setForm((prev) => ({ ...prev, variantSkus: prev.variantSkus.map((item, itemIndex) => itemIndex === index ? { ...item, stock: Number(e.target.value) } : item) }))} className="rounded border border-border px-2 py-1 text-xs" />
+                                <input type="number" min={0} value={variant.lowStockThreshold} placeholder="Low stock" onChange={(e) => setForm((prev) => ({ ...prev, variantSkus: prev.variantSkus.map((item, itemIndex) => itemIndex === index ? { ...item, lowStockThreshold: Number(e.target.value) } : item) }))} className="rounded border border-border px-2 py-1 text-xs" />
+                                <input value={variant.image ?? ""} placeholder="Variant image URL" onChange={(e) => setForm((prev) => ({ ...prev, variantSkus: prev.variantSkus.map((item, itemIndex) => itemIndex === index ? { ...item, ...(e.target.value ? { image: e.target.value } : {}) } : item) }))} className="rounded border border-border px-2 py-1 text-xs" />
+                                <label className="flex items-center gap-1 text-[10px]"><input type="checkbox" checked={variant.isActive} onChange={(e) => setForm((prev) => ({ ...prev, variantSkus: prev.variantSkus.map((item, itemIndex) => itemIndex === index ? { ...item, isActive: e.target.checked } : item) }))} /> Active</label>
+                                <button type="button" onClick={() => setForm((prev) => ({ ...prev, variantSkus: prev.variantSkus.map((item, itemIndex) => itemIndex === index ? { ...item, isActive: false } : item) }))} className="text-xs font-semibold text-sale">Archive</button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1818,10 +2058,19 @@ export function AdminPage() {
                 </button>
                 <button
                   type="submit"
+                  value="draft"
                   className="inline-flex items-center gap-1.5 rounded-lg bg-gold px-5 py-2 text-xs font-bold text-primary-foreground shadow-md hover:bg-gold-deep"
                 >
                   <CheckCircle2 className="h-4 w-4" />
-                  {editingProduct ? "Save Product Changes" : "Publish to Store"}
+                  Save Draft
+                </button>
+                <button
+                  type="submit"
+                  value="published"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-5 py-2 text-xs font-bold text-white shadow-md hover:bg-emerald-700"
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  Publish Product
                 </button>
               </div>
             </form>

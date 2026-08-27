@@ -1,19 +1,19 @@
-import catBath from "@/assets/cat-bath.jpg";
-import catBeauty from "@/assets/cat-beauty.jpg";
-import catMensAcc from "@/assets/cat-mens-acc.jpg";
-import catWomensAcc from "@/assets/cat-womens-acc.jpg";
-import catMensFashion from "@/assets/cat-mens-fashion.jpg";
-import catWomensFashion from "@/assets/cat-womens-fashion.jpg";
-import catBaby from "@/assets/cat-baby.jpg";
-import catToys from "@/assets/cat-toys.jpg";
-import catHome from "@/assets/cat-home.jpg";
-import pSoap from "@/assets/p-soap.jpg";
-import pBar from "@/assets/p-bar.jpg";
-import pSerum from "@/assets/p-serum.jpg";
-import pWatch from "@/assets/p-watch.jpg";
-import pWatchRose from "@/assets/p-watch-rose.jpg";
-import pPolo from "@/assets/p-polo.jpg";
-import pShirtMan from "@/assets/p-shirt-man.jpg";
+const catBath = new URL("../../assets/cat-bath.jpg", import.meta.url).href;
+const catBeauty = new URL("../../assets/cat-beauty.jpg", import.meta.url).href;
+const catMensAcc = new URL("../../assets/cat-mens-acc.jpg", import.meta.url).href;
+const catWomensAcc = new URL("../../assets/cat-womens-acc.jpg", import.meta.url).href;
+const catMensFashion = new URL("../../assets/cat-mens-fashion.jpg", import.meta.url).href;
+const catWomensFashion = new URL("../../assets/cat-womens-fashion.jpg", import.meta.url).href;
+const catBaby = new URL("../../assets/cat-baby.jpg", import.meta.url).href;
+const catToys = new URL("../../assets/cat-toys.jpg", import.meta.url).href;
+const catHome = new URL("../../assets/cat-home.jpg", import.meta.url).href;
+const pSoap = new URL("../../assets/p-soap.jpg", import.meta.url).href;
+const pBar = new URL("../../assets/p-bar.jpg", import.meta.url).href;
+const pSerum = new URL("../../assets/p-serum.jpg", import.meta.url).href;
+const pWatch = new URL("../../assets/p-watch.jpg", import.meta.url).href;
+const pWatchRose = new URL("../../assets/p-watch-rose.jpg", import.meta.url).href;
+const pPolo = new URL("../../assets/p-polo.jpg", import.meta.url).href;
+const pShirtMan = new URL("../../assets/p-shirt-man.jpg", import.meta.url).href;
 
 export type Category = { slug: string; name: string; image: string };
 
@@ -322,6 +322,15 @@ export const variantsFor = (product: Product): string[] =>
 
 export type ProductDetail = {
   images: string[];
+  imageAlts?: string[];
+  sku?: string;
+  productType?: "physical" | "digital" | "service";
+  bulletPoints?: string[];
+  searchKeywords?: string;
+  scheduledFor?: string;
+  reviewStatus?: "incomplete" | "ready" | "approved" | "rejected";
+  returnPolicy?: string;
+  shippingNotes?: string;
   description: string;
   shortDescription?: string;
   features: string[];
@@ -329,11 +338,26 @@ export type ProductDetail = {
   stock: number;
   variantLabel: string;
   variants: string[];
+  variantSkus?: ProductVariant[];
   tags?: string[];
   attributes?: { key: string; value: string }[];
   seoTitle?: string;
   seoDescription?: string;
   publishStatus?: "draft" | "review" | "published" | "scheduled" | "archived";
+  catalogStatus?: "draft" | "active" | "archived";
+};
+
+export type ProductVariant = {
+  id: string;
+  sku: string;
+  title: string;
+  optionValues: Record<string, string>;
+  price?: number;
+  oldPrice?: number;
+  stock: number;
+  lowStockThreshold: number;
+  image?: string;
+  isActive: boolean;
 };
 
 const variantLabelByCategory: Record<string, string> = {

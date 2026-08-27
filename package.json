@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev --host 0.0.0.0",
-    "dev:cf": "wrangler dev --host 0.0.0.0",
+    "dev:cf": "npm run build && wrangler dev dist/server/server.js --host 0.0.0.0",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "preview": "vite preview --host 0.0.0.0",

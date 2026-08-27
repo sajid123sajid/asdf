@@ -22,8 +22,6 @@ import {
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
-  authenticate,
-  getGoogleAuthUrl,
   getCurrentUser,
   getUserOrders,
   logout,
@@ -33,6 +31,7 @@ import {
 import type { OrderRecord } from "../db";
 import { formatTk } from "@/components/zupona/data";
 import { useShop } from "@/components/zupona/shop-store";
+import { AuthPanel } from "@/components/zupona/AuthPanel";
 
 export const Route = createFileRoute("/account")({
   loader: async () => {
@@ -63,14 +62,6 @@ function AccountPage() {
   const { cartCount, wishlist } = useShop();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [address, setAddress] = useState("");
-  const [authLoading, setAuthLoading] = useState(false);
-
   // Profile Edit State
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editName, setEditName] = useState(user?.name || "");
@@ -93,40 +84,6 @@ function AccountPage() {
     }
   }, [user]);
 
-  const handleAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAuthLoading(true);
-    try {
-      const result = await authenticate({
-        data: {
-          email,
-          password,
-          name,
-          phone,
-          address,
-          mode: authMode,
-        },
-      });
-
-      toast.success(
-        result.status === "signed_up"
-          ? "Account created successfully! Welcome to Zupona."
-          : "Signed in successfully!"
-      );
-      setIsModalOpen(false);
-      setEmail("");
-      setPassword("");
-      setName("");
-      setPhone("");
-      setAddress("");
-      await router.invalidate();
-    } catch (err: any) {
-      toast.error(err?.message || "Authentication failed. Please check your credentials.");
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
   const handleLogout = async () => {
     try {
       await logout();
@@ -134,15 +91,6 @@ function AccountPage() {
       await router.invalidate();
     } catch {
       toast.error("Logout failed. Please try again.");
-    }
-  };
-
-  const handleGoogleSignIn = async () => {
-    try {
-      const url = await getGoogleAuthUrl();
-      window.location.href = url;
-    } catch (error: any) {
-      toast.error(error?.message || "Google sign-in is not available yet.");
     }
   };
 
@@ -470,32 +418,12 @@ function AccountPage() {
             <button
               type="button"
               onClick={() => {
-                setAuthMode("signin");
                 setIsModalOpen(true);
               }}
               className="inline-flex items-center gap-2 rounded-full bg-gold px-6 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-gold-deep shadow-sm transition-transform active:scale-95"
             >
               <LogIn className="h-4 w-4" /> Sign In / Sign Up
             </button>
-          </div>
-
-          {/* Store Admin Portal Link */}
-          <div className="flex flex-col items-start justify-between gap-3 rounded-2xl border border-gold/30 bg-gold/5 p-4 sm:flex-row sm:items-center">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gold text-primary-foreground font-bold shadow-sm">
-                ⚡
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-foreground">Zupona Store &amp; Catalog Manager</h3>
-                <p className="text-xs text-muted-foreground">Add new products, edit pricing &amp; stock, or view live customer orders.</p>
-              </div>
-            </div>
-            <Link
-              to="/admin"
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-gold px-4 py-2 text-xs font-bold text-primary-foreground hover:bg-gold-deep shadow-xs"
-            >
-              Open Admin Dashboard
-            </Link>
           </div>
 
           {/* Value Props */}
@@ -528,153 +456,11 @@ function AccountPage() {
       {/* Auth Modal Popup */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in">
-          <div className="relative w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
-            <button
-              onClick={() => setIsModalOpen(false)}
-              className="absolute right-4 top-4 rounded-full p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"
-            >
+          <div className="relative w-full max-w-md">
+            <button onClick={() => setIsModalOpen(false)} className="absolute right-2 top-2 z-10 rounded-full p-1 text-muted-foreground hover:bg-secondary hover:text-foreground" aria-label="Close sign in">
               <X className="h-5 w-5" />
             </button>
-
-            {/* Modal Tabs */}
-            <div className="mb-6 flex rounded-lg bg-secondary p-1">
-              <button
-                type="button"
-                onClick={() => setAuthMode("signin")}
-                className={`flex-1 rounded-md py-1.5 text-xs font-bold transition-all ${
-                  authMode === "signin"
-                    ? "bg-card text-foreground shadow-xs"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Sign In
-              </button>
-              <button
-                type="button"
-                onClick={() => setAuthMode("signup")}
-                className={`flex-1 rounded-md py-1.5 text-xs font-bold transition-all ${
-                  authMode === "signup"
-                    ? "bg-card text-foreground shadow-xs"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Create Account
-              </button>
-            </div>
-
-            <h2 className="mb-1 text-lg font-bold text-foreground">
-              {authMode === "signin" ? "Welcome Back" : "Create your Account"}
-            </h2>
-            <p className="mb-4 text-xs text-muted-foreground">
-              {authMode === "signin"
-                ? "Enter your credentials to access your orders and profile."
-                : "Fill in your details to register as a new Zupona customer."}
-            </p>
-
-            <form onSubmit={handleAuth} className="space-y-3.5">
-              <button
-                type="button"
-                onClick={handleGoogleSignIn}
-                className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary"
-              >
-                <span className="text-base">G</span>
-                Continue with Google
-              </button>
-
-              <div className="relative my-2">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-border" />
-                </div>
-                <div className="relative flex justify-center text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                  <span className="bg-card px-2">or</span>
-                </div>
-              </div>
-
-              {authMode === "signup" && (
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">
-                    Full Name
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full rounded-lg border border-border bg-background p-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-gold"
-                    placeholder="e.g. Sajid Ahmed"
-                  />
-                </div>
-              )}
-
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full rounded-lg border border-border bg-background p-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-gold"
-                  placeholder="your@email.com"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full rounded-lg border border-border bg-background p-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-gold"
-                  placeholder="••••••••"
-                />
-              </div>
-
-              {authMode === "signup" && (
-                <>
-                  <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1">
-                      Phone Number (Optional)
-                    </label>
-                    <input
-                      type="tel"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      className="w-full rounded-lg border border-border bg-background p-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-gold"
-                      placeholder="01700000000"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1">
-                      Delivery Address (Optional)
-                    </label>
-                    <input
-                      type="text"
-                      value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                      className="w-full rounded-lg border border-border bg-background p-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-gold"
-                      placeholder="Dhaka, Bangladesh"
-                    />
-                  </div>
-                </>
-              )}
-
-              <button
-                type="submit"
-                disabled={authLoading}
-                className="w-full rounded-lg bg-gold py-2.5 text-sm font-semibold text-primary-foreground hover:bg-gold-deep transition-colors shadow-sm disabled:opacity-50"
-              >
-                {authLoading
-                  ? "Processing..."
-                  : authMode === "signin"
-                  ? "Sign In"
-                  : "Create Account"}
-              </button>
-            </form>
+            <AuthPanel onClose={() => setIsModalOpen(false)} />
           </div>
         </div>
       )}

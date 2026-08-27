@@ -43,12 +43,6 @@ function SellPage() {
             Join a growing marketplace and start taking orders this week.
           </p>
         </div>
-        <Link
-          to="/admin"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-gold bg-gold/10 px-4 py-2 text-xs font-bold text-gold-deep hover:bg-gold hover:text-primary-foreground"
-        >
-          <span>⚡ Open Product Manager &amp; Admin</span>
-        </Link>
       </div>
 
       <ul className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

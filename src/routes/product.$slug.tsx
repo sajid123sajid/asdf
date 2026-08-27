@@ -72,12 +72,6 @@ function ProductNotFound() {
         >
           Continue Shopping
         </Link>
-        <Link
-          to="/admin"
-          className="rounded-full border border-border bg-card px-5 py-2.5 text-sm font-semibold text-foreground hover:bg-secondary"
-        >
-          Manage Catalog
-        </Link>
       </div>
     </main>
   );
