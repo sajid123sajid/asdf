@@ -51,6 +51,7 @@ function CheckoutPage() {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [shippingPostcode, setShippingPostcode] = useState("");
   const [email, setEmail] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"COD" | "ONLINE">("COD");
 
@@ -96,6 +97,7 @@ function CheckoutPage() {
         })),
         totalAmount,
         shippingAddress: deliveryAddress,
+        shippingPostcode,
         phone,
       };
       if (paymentMethod === "ONLINE") {
@@ -279,6 +281,21 @@ function CheckoutPage() {
                 onChange={(e) => setDeliveryAddress(e.target.value)}
                 placeholder="House #, Road #, Area, Police Station, District"
                 rows={3}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-gold"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">
+                Postal / ZIP Code *
+              </label>
+              <input
+                required
+                inputMode="numeric"
+                pattern="[0-9]{4}"
+                maxLength={4}
+                value={shippingPostcode}
+                onChange={(e) => setShippingPostcode(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                placeholder="e.g. 1212"
                 className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-gold"
               />
             </div>

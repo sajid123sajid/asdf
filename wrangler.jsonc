@@ -4,6 +4,19 @@
   "compatibility_date": "2026-08-01",
   "compatibility_flags": ["nodejs_compat"],
   "main": "./src/server.ts",
+  "assets": {
+    "directory": "./dist/client"
+  },
+  "routes": [
+    {
+      "pattern": "zupona.com",
+      "custom_domain": true
+    }
+  ],
+  "vars": {
+    "SSLCOMMERZ_IS_SANDBOX": "true",
+    "PUBLIC_SITE_URL": "https://zupona.com"
+  },
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1

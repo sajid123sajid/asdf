@@ -5,3 +5,9 @@ GOOGLE_REDIRECT_URI=http://localhost:5173/google-callback
 
 # Optional comma-separated admin emails.
 # ADMIN_EMAILS=admin@example.com
+
+# Local SSLCOMMERZ sandbox configuration. Keep real credentials out of source control.
+SSLCOMMERZ_IS_SANDBOX=true
+PUBLIC_SITE_URL=http://localhost:5173
+# SSLCOMMERZ_STORE_ID=your-sandbox-store-id
+# SSLCOMMERZ_STORE_PASSWORD=your-sandbox-store-password

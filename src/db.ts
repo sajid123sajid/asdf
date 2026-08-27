@@ -165,6 +165,18 @@ async function ensureTables(db: any) {
         FOREIGN KEY (order_id) REFERENCES orders(id)
       )`
     ).run();
+    await db.prepare(
+      `CREATE TABLE IF NOT EXISTS sessions (
+        id TEXT PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        expires_at TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )`
+    ).run();
+    await db.prepare(
+      "CREATE INDEX IF NOT EXISTS idx_sessions_user_expiry ON sessions(user_id, expires_at)"
+    ).run();
 
     dbInitialized = true;
   } catch (err) {
@@ -222,6 +234,9 @@ export async function registerUser(
     address,
     created_at: new Date().toISOString(),
   };
+  if (memoryUsers.has(normalizedEmail)) {
+    throw new Error("An account with this email already exists.");
+  }
   memoryUsers.set(normalizedEmail, user);
   return user;
 }
@@ -457,6 +472,7 @@ export async function createSession(
     expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString(),
     created_at: new Date().toISOString(),
   };
+    await ensureTables(db);
 
   if (db) {
     await db
@@ -479,6 +495,7 @@ export async function getUserBySession(
   if (!sessionId) return null;
 
   if (db) {
+    await ensureTables(db);
     const user = await db
       .prepare(
         `SELECT users.*
@@ -503,6 +520,7 @@ export async function getUserBySession(
 export async function deleteSession(sessionId: string, customEnv?: any): Promise<void> {
   const db = getD1Database(customEnv);
   if (db) {
+    await ensureTables(db);
     await db.prepare("DELETE FROM sessions WHERE id = ?").bind(sessionId).run();
     return;
   }

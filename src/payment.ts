@@ -50,7 +50,7 @@ function amountMatches(left: number, right: number): boolean {
   return Math.abs(left - right) < 0.005;
 }
 
-export async function createSslcommerzPayment(order: OrderRecord): Promise<{ paymentUrl: string }> {
+export async function createSslcommerzPayment(order: OrderRecord, shippingPostcode: string): Promise<{ paymentUrl: string }> {
   if (order.total_amount < 10 || order.total_amount > 500000) {
     throw new Error("SSLCOMMERZ supports payments from Tk 10 to Tk 500,000.");
   }
@@ -69,6 +69,7 @@ export async function createSslcommerzPayment(order: OrderRecord): Promise<{ pay
     cus_email: order.user_email,
     cus_add1: order.shipping_address.slice(0, 150),
     cus_phone: order.phone,
+    ship_postcode: shippingPostcode,
     shipping_method: "YES",
     num_of_item: "1",
     ship_name: "Zupona customer",

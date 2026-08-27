@@ -1,13 +1,3 @@
-## Payments and orders
-
-Zupona currently supports cash on delivery only. Orders are created server-side after the
-server recalculates item prices, availability, delivery charge, and the final amount from the
-catalog. The browser does not confirm payment, and an order is not treated as an online payment.
-
-An online payment provider still needs to be selected and configured before prepaid checkout can
-be added. That integration must include server-side payment creation, signed webhook verification,
-idempotency, amount/currency/order matching, and separate payment and fulfillment statuses.
-
 # Zupona
 
 Zupona is a Bangladeshi e-commerce storefront and admin system for beauty, fashion, home, and lifestyle products. The project includes a storefront, customer account flow, order tracking, admin catalog controls, and Cloudflare-backed persistence.
@@ -19,6 +9,21 @@ Zupona is a Bangladeshi e-commerce storefront and admin system for beauty, fashi
 - Tailwind CSS
 - Cloudflare D1
 - Cloudflare Workers / Wrangler
+
+## Payments and orders
+
+Checkout supports both cash on delivery and online payment through SSLCOMMERZ. The server
+recalculates product prices, availability, delivery charge, and the final amount from the
+catalog; browser-supplied prices and totals are not trusted.
+
+Online orders are created as `PENDING_PAYMENT` before redirecting to SSLCOMMERZ. The Worker
+validates the provider callback through the SSLCOMMERZ validation API and records transaction
+details in the D1 `payments` table. Only a verified payment changes the order to `Order confirmed`.
+Cash-on-delivery orders continue directly to `Order confirmed`.
+
+Required checkout fields include customer name, phone, full delivery address, and a four-digit
+Bangladesh postal code. SSLCOMMERZ callbacks are handled at `/payments/sslcommerz/success`,
+`/payments/sslcommerz/fail`, `/payments/sslcommerz/cancel`, and `/payments/sslcommerz/ipn`.
 
 ## Authentication and data flow
 
@@ -58,6 +63,9 @@ npm run db:migrate:local
 npm run dev:cf
 ```
 
+The in-memory fallback is local-only. Use the local D1 migration command when testing database-backed
+orders and payments locally.
+
 ## Production / Cloudflare deployment
 
 This project expects the `DB` binding from `wrangler.jsonc` in the Cloudflare environment.
@@ -76,6 +84,10 @@ Required SSLCOMMERZ values for online payments:
 - `SSLCOMMERZ_IS_SANDBOX=true` for sandbox testing, omitted or `false` for live
 - `PUBLIC_SITE_URL` set to the public HTTPS origin of this Worker
 
+The current configured production values are `SSLCOMMERZ_IS_SANDBOX=true` and
+`PUBLIC_SITE_URL=https://zupona.com`, stored as non-secret Wrangler variables. The deployed
+Worker is `zupona-store` and its custom domain is `zupona.com`.
+
 Configure the secrets without putting credentials in source control:
 
 ```sh
@@ -88,12 +100,17 @@ In the SSLCOMMERZ merchant panel, enable the HTTP IPN listener and use the deplo
 registered automatically from `PUBLIC_SITE_URL`. Apply migration `0005_payments.sql` before
 accepting online payments.
 
-To deploy with D1:
+Apply the remote D1 migrations and deploy the Worker with its generated client assets:
 
 ```sh
 wrangler d1 migrations apply zupona-db --remote
 npm run build
+npx wrangler deploy dist/server/server.js --config wrangler.jsonc
 ```
+
+The `assets.directory` setting in `wrangler.jsonc` points to `dist/client`, and the custom-domain
+route attaches `zupona.com` to this Worker. Do not use `--no-bundle` for deployment because the
+TanStack Start SSR output depends on generated server chunks.
 
 ## Project structure
 
@@ -103,10 +120,11 @@ src/
   db.ts                 # D1 + in-memory data layer
   catalog-db.ts         # catalog CRUD logic
   admin-api.ts          # admin-only protected functions
+  payment.ts            # SSLCOMMERZ initiation, validation, and callbacks
   routes/               # storefront and account pages
   components/zupona/    # storefront UI components
   lib/                  # shared utilities and error handling
-migrations/              # D1 SQL migrations
+migrations/              # D1 SQL migrations, including 0005_payments.sql
 public/                  # static assets
 wrangler.jsonc           # Cloudflare Worker + D1 config
 package.json             # project scripts and dependencies

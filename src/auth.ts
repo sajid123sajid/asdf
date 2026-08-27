@@ -19,6 +19,7 @@ import {
 import { getCatalogBySlug } from "./catalog-db";
 import { getProduct } from "./components/zupona/data";
 import { createSslcommerzPayment } from "./payment";
+import { z } from "zod";
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -32,6 +33,27 @@ const COOKIE_OPTIONS = {
   maxAge: 60 * 60 * 24 * 30, // 30 days
   sameSite: "lax" as const,
 };
+
+function getRuntimeEnv() {
+  return (globalThis as { __CLOUDFLARE_ENV__?: Record<string, unknown> }).__CLOUDFLARE_ENV__ ?? {};
+}
+
+function getCookieOptions() {
+  const publicSiteUrl = getRuntimeEnv()["PUBLIC_SITE_URL"];
+  return {
+    ...COOKIE_OPTIONS,
+    secure: typeof publicSiteUrl === "string" && publicSiteUrl.startsWith("https://"),
+  };
+}
+
+const authenticateInput = z.object({
+  email: z.string().trim().min(1).max(320),
+  password: z.string().min(1).max(512),
+  name: z.string().max(160).optional(),
+  phone: z.string().max(40).optional(),
+  address: z.string().max(500).optional(),
+  mode: z.enum(["signin", "signup", "auto"]).optional(),
+});
 
 export interface SafeUser {
   id: string | number;
@@ -60,7 +82,7 @@ async function loadCookieHelpers() {
 }
 
 function getGoogleConfig() {
-  const env = (globalThis as { __CLOUDFLARE_ENV__?: Record<string, unknown> }).__CLOUDFLARE_ENV__ ?? {};
+  const env = getRuntimeEnv();
 
   const clientId = typeof env["GOOGLE_CLIENT_ID"] === "string" ? env["GOOGLE_CLIENT_ID"] : "";
   const clientSecret = typeof env["GOOGLE_CLIENT_SECRET"] === "string" ? env["GOOGLE_CLIENT_SECRET"] : "";
@@ -162,7 +184,7 @@ async function signInUser(user: UserRecord): Promise<{ user: SafeUser; sessionId
   const safeUser = toSafeUser(user);
   const session = await createSession(user.id);
   const { setCookie } = await loadCookieHelpers();
-  setCookie(SESSION_COOKIE, session.id, COOKIE_OPTIONS);
+  setCookie(SESSION_COOKIE, session.id, getCookieOptions());
   return { user: safeUser, sessionId: session.id };
 }
 
@@ -170,16 +192,7 @@ async function signInUser(user: UserRecord): Promise<{ user: SafeUser; sessionId
  * Authentication server function: Handles both Sign In and Sign Up with secure password hashing.
  */
 export const authenticate = createServerFn({ method: "POST" })
-  .validator(
-    (data: {
-      email: string;
-      password: string;
-      name?: string;
-      phone?: string;
-      address?: string;
-      mode?: "signin" | "signup" | "auto";
-    }) => data
-  )
+  .validator((data) => authenticateInput.parse(data))
   .handler(async ({ data }) => {
     const email = data.email.toLowerCase().trim();
     if (!email || !data.password) {
@@ -388,6 +401,7 @@ export const placeOrder = createServerFn({ method: "POST" })
       items: Array<{ slug: string; name: string; qty: number; price: number }>;
       totalAmount: number;
       shippingAddress: string;
+      shippingPostcode: string;
       phone: string;
       paymentMethod?: string;
     }) => data
@@ -401,6 +415,9 @@ export const placeOrder = createServerFn({ method: "POST" })
     }
     if (!data.phone.trim() || data.phone.trim().length > 40) {
       throw new Error("A valid phone number is required.");
+    }
+    if (!/^\d{4}$/.test(data.shippingPostcode.trim())) {
+      throw new Error("A valid 4-digit postal code is required.");
     }
 
     const pricedItems = [] as Array<{ slug: string; name: string; qty: number; price: number }>;
@@ -460,12 +477,16 @@ export const startOnlinePayment = createServerFn({ method: "POST" })
       items: Array<{ slug: string; name: string; qty: number; price: number }>;
       totalAmount: number;
       shippingAddress: string;
+      shippingPostcode: string;
       phone: string;
     }) => data
   )
   .handler(async ({ data }) => {
     const order = await placeOrder({ data: { ...data, paymentMethod: "SSLCOMMERZ" } });
-    const payment = await createSslcommerzPayment({ ...order, status: "PENDING_PAYMENT", payment_method: "SSLCOMMERZ" });
+    const payment = await createSslcommerzPayment(
+      { ...order, status: "PENDING_PAYMENT", payment_method: "SSLCOMMERZ" },
+      data.shippingPostcode.trim(),
+    );
     return { order: { ...order, status: "PENDING_PAYMENT", payment_method: "SSLCOMMERZ" }, paymentUrl: payment.paymentUrl };
   });
 
