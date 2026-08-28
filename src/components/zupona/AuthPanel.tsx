@@ -8,9 +8,11 @@ type AuthMode = "signin" | "signup";
 export function AuthPanel({
   onClose,
   initialMode = "signin",
+  redirectTo,
 }: {
   onClose?: () => void;
   initialMode?: AuthMode;
+  redirectTo?: string;
 }) {
   const router = useRouter();
   const [authMode, setAuthMode] = useState<AuthMode>(initialMode);
@@ -35,7 +37,7 @@ export function AuthPanel({
       );
       onClose?.();
       await router.invalidate();
-      await router.navigate({ to: result.user.role === "owner" ? "/admin/dashboard" : "/account" });
+      await router.navigate({ to: redirectTo || (result.user.role === "owner" ? "/admin/dashboard" : "/account") });
     } catch (error: unknown) {
       toast.error(
         error instanceof Error
@@ -49,7 +51,7 @@ export function AuthPanel({
 
   const handleGoogleSignIn = async () => {
     try {
-      window.location.href = await getGoogleAuthUrl();
+      window.location.href = await getGoogleAuthUrl({ data: redirectTo ? { returnTo: redirectTo } : {} });
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "Google sign-in is not available yet.");
     }

@@ -1,0 +1,7 @@
+import { ClipboardList, Package, UserPlus } from "lucide-react";
+import type { AdminDashboardOverview } from "@/db";
+
+export function AdminActivityFeed({ activity }: { activity: AdminDashboardOverview["activity"] }) {
+  const iconFor = (type: AdminDashboardOverview["activity"][number]["type"]) => type === "product" ? Package : type === "user" ? UserPlus : ClipboardList;
+  return <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-violet-600">Traceability</p><h2 className="mt-1 text-base font-black text-slate-900">Recent activity</h2>{activity.length === 0 ? <p className="mt-6 rounded-xl border border-dashed border-slate-200 p-6 text-center text-xs text-slate-500">No activity recorded yet.</p> : <div className="mt-4 space-y-3">{activity.map((item) => { const Icon = iconFor(item.type); return <div key={`${item.type}-${item.id}`} className="flex gap-3"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-violet-100 text-violet-700"><Icon className="h-4 w-4" /></span><div className="min-w-0"><p className="truncate text-xs font-bold text-slate-800">{item.label}</p><p className="truncate text-[11px] text-slate-500">{item.detail}</p><p className="mt-0.5 text-[10px] text-slate-400">{item.created_at}</p></div></div>; })}</div>}</section>;
+}

@@ -3,6 +3,7 @@ import { Minus, Plus, ShoppingCart, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { formatTk } from "@/components/zupona/data";
 import { useShop } from "@/components/zupona/shop-store";
+import { getCurrentUser, type SafeUser } from "@/auth";
 
 export const Route = createFileRoute("/cart")({
   head: () => ({
@@ -18,11 +19,19 @@ export const Route = createFileRoute("/cart")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
+  loader: async () => {
+    try {
+      return { user: await getCurrentUser() };
+    } catch {
+      return { user: null as SafeUser | null };
+    }
+  },
   component: CartPage,
 });
 
 function CartPage() {
   const navigate = useNavigate();
+  const { user } = Route.useLoaderData();
   const { cartItems, cartTotal, setQty, removeFromCart } = useShop();
   const delivery = cartTotal === 0 || cartTotal >= 999 ? 0 : 60;
 
@@ -126,14 +135,15 @@ function CartPage() {
             <button
               type="button"
               onClick={() => {
-                navigate({
-                  to: "/checkout",
-                  search: { slug: cartItems[0]?.product.slug ?? undefined },
-                });
+                if (!user) {
+                  navigate({ to: "/login", search: { returnTo: "/checkout" } });
+                  return;
+                }
+                navigate({ to: "/checkout", search: { slug: cartItems[0]?.product.slug ?? undefined } });
               }}
               className="mt-4 w-full rounded-md bg-gold px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-gold-deep"
             >
-              Proceed to Checkout
+              {user ? "Proceed to Checkout" : "Login to Proceed"} · {formatTk(cartTotal + delivery)}
             </button>
             <p className="mt-2 text-center text-xs text-muted-foreground">
               Checkout calculates the final payable amount on the server.

@@ -1,0 +1,7 @@
+import type { AdminDashboardOverview } from "@/db";
+import { formatTk } from "@/components/zupona/data";
+
+export function AdminSalesOverview({ sales }: { sales: AdminDashboardOverview["sales"] }) {
+  const maxRevenue = Math.max(...sales.map((point) => point.revenue), 0);
+  return <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-violet-600">Performance</p><h2 className="mt-1 text-base font-black text-slate-900">Sales overview</h2></div>{sales.length > 1 && <p className="text-xs text-slate-500">{sales.reduce((sum, point) => sum + point.orders, 0)} orders across {sales.length} days</p>}</div>{sales.length < 2 ? <p className="mt-6 rounded-xl border border-dashed border-slate-200 p-8 text-center text-xs text-slate-500">Not enough historical data</p> : <div className="mt-5 space-y-3">{sales.map((point) => <div key={point.date} className="grid grid-cols-[86px_1fr_82px] items-center gap-3 text-xs"><span className="text-slate-500">{point.date}</span><div className="h-3 rounded-full bg-slate-100"><div className="h-3 rounded-full bg-gradient-to-r from-violet-500 to-blue-500" style={{ width: `${maxRevenue > 0 ? Math.max(4, (point.revenue / maxRevenue) * 100) : 0}%` }} /></div><span className="text-right font-bold text-slate-800">{formatTk(point.revenue)}</span></div>)}</div>}</section>;
+}

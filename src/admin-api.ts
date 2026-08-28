@@ -8,7 +8,7 @@ import {
   saveSiteSetting,
   type CatalogProductInput,
 } from "./catalog-db.ts";
-import { getAllOrders, getOrderById, updateOrderStatus, type OrderRecord } from "./db.ts";
+import { getAdminDashboardOverview as fetchAdminDashboardOverview, getAllOrders, getOrderById, updateOrderStatus, type AdminDashboardOverview, type OrderRecord } from "./db.ts";
 import { z } from "zod";
 
 const ORDER_STATUSES = new Set([
@@ -65,6 +65,11 @@ export const getAdminDashboard = createServerFn({ method: "GET" }).handler(async
   const user = await requireAdminUser();
   const [catalog, orders, settings] = await Promise.all([listCatalog(true), getAllOrders(), getSiteSettings()]);
   return { user, catalog, orders, settings: settings as SiteSettings };
+});
+
+export const getAdminDashboardOverview = createServerFn({ method: "GET" }).handler(async (): Promise<AdminDashboardOverview> => {
+  await requireAdminUser();
+  return fetchAdminDashboardOverview();
 });
 
 export const saveAdminProduct = createServerFn({ method: "POST" })

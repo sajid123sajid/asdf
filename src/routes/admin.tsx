@@ -45,20 +45,22 @@ import {
 import {
   deleteAdminProduct,
   getAdminDashboard,
+  getAdminDashboardOverview,
   importAdminCatalog,
   saveAdminProduct,
   saveAdminSetting,
   updateAdminOrderStatus,
 } from "@/admin-api";
 import { getCurrentUser } from "@/auth";
-import type { OrderRecord } from "@/db";
+import type { AdminDashboardOverview as DashboardOverviewData, OrderRecord } from "@/db";
 import { AdminShell } from "@/components/admin/AdminShell";
 import type { AdminSection } from "@/components/admin/AdminSidebar";
+import { AdminDashboardOverview } from "@/components/admin/AdminDashboardOverview";
 
 export const Route = createFileRoute("/admin")({
   beforeLoad: async ({ location }) => {
     const user = await getCurrentUser();
-    if (!user) throw redirect({ to: "/login" });
+    if (!user) throw redirect({ to: "/login", search: { returnTo: undefined } });
     if (user.role !== "owner") throw redirect({ to: "/account" });
     if (location.pathname === "/admin") throw redirect({ to: "/admin/dashboard" });
   },
@@ -76,7 +78,7 @@ function AdminLayout() {
   return <Outlet />;
 }
 
-type TabType = "catalog" | "new" | "orders" | "settings" | "tools";
+type TabType = "dashboard" | "catalog" | "new" | "orders" | "settings" | "tools";
 
 export function AdminPage() {
   const {
@@ -90,7 +92,7 @@ export function AdminPage() {
     getProductDetail,
   } = useShop();
 
-  const [activeTab, setActiveTab] = useState<TabType>("catalog");
+  const [activeTab, setActiveTab] = useState<TabType>("dashboard");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedStockStatus, setSelectedStockStatus] = useState<"all" | "in" | "low" | "out">("all");
@@ -152,6 +154,9 @@ export function AdminPage() {
   const [adminState, setAdminState] = useState<"loading" | "ready" | "denied">("loading");
   const [adminMessage, setAdminMessage] = useState("");
   const [imageUrlInput, setImageUrlInput] = useState("");
+  const [dashboardOverview, setDashboardOverview] = useState<DashboardOverviewData | null>(null);
+  const [dashboardLoading, setDashboardLoading] = useState(true);
+  const [dashboardError, setDashboardError] = useState("");
 
   const [orders, setOrders] = useState<OrderRecord[]>([]);
   const [siteSettings, setSiteSettings] = useState<Record<string, unknown>>({});
@@ -162,7 +167,9 @@ export function AdminPage() {
     home_subtitle: "Premium products curated for daily life and smart living.",
   });
 
-  const activeSection: AdminSection = activeTab === "orders"
+  const activeSection: AdminSection = activeTab === "dashboard"
+    ? "dashboard"
+    : activeTab === "orders"
     ? "orders"
     : activeTab === "settings"
       ? "settings"
@@ -171,7 +178,8 @@ export function AdminPage() {
         : "catalog";
 
   const handleSectionChange = (section: AdminSection) => {
-    if (section === "orders") setActiveTab("orders");
+    if (section === "dashboard") setActiveTab("dashboard");
+    else if (section === "orders") setActiveTab("orders");
     else if (section === "settings") setActiveTab("settings");
     else if (section === "tools") setActiveTab("tools");
     else setActiveTab("catalog");
@@ -179,6 +187,20 @@ export function AdminPage() {
 
   useEffect(() => {
     let mounted = true;
+    setDashboardLoading(true);
+    void getAdminDashboardOverview()
+      .then((overview) => {
+        if (!mounted) return;
+        setDashboardOverview(overview);
+        setDashboardError("");
+      })
+      .catch((error: unknown) => {
+        if (!mounted) return;
+        setDashboardError(error instanceof Error ? error.message : "Dashboard data is unavailable.");
+      })
+      .finally(() => {
+        if (mounted) setDashboardLoading(false);
+      });
     void getAdminDashboard()
       .then(({ catalog, orders: savedOrders, settings }) => {
         if (!mounted) return;
@@ -780,7 +802,15 @@ export function AdminPage() {
       searchQuery={searchQuery}
       onSearchChange={setSearchQuery}
     >
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(255,180,0,0.15),_transparent_35%),_#f4f3f0] pb-16 pt-4">
+    {activeTab === "dashboard" ? (
+      <AdminDashboardOverview
+        overview={dashboardOverview}
+        loading={dashboardLoading}
+        error={dashboardError}
+        onAddProduct={handleOpenAdd}
+        onSectionChange={handleSectionChange}
+      />
+    ) : <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(255,180,0,0.15),_transparent_35%),_#f4f3f0] pb-16 pt-4">
       <div className="mx-auto max-w-[1360px] px-3 sm:px-5">
         <div className="overflow-hidden rounded-[28px] border border-[#e3dfd9] bg-white shadow-[0_24px_80px_rgba(15,23,42,0.08)] ring-1 ring-black/5">
           <div className="border-b border-[#eee8df] bg-[#fffaf2] px-4 py-4 sm:px-6">
@@ -2087,7 +2117,7 @@ export function AdminPage() {
           </div>
         </div>
       )}
-    </div>
+    </div>}
     </AdminShell>
   );
 }

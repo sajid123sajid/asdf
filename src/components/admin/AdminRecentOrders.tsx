@@ -1,0 +1,7 @@
+import { Clock, ShoppingBag } from "lucide-react";
+import type { OrderRecord } from "@/db";
+import { formatTk } from "@/components/zupona/data";
+
+export function AdminRecentOrders({ orders }: { orders: OrderRecord[] }) {
+  return <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-violet-600">Operations</p><h2 className="mt-1 text-base font-black text-slate-900">Recent orders</h2></div><ShoppingBag className="h-5 w-5 text-slate-400" /></div>{orders.length === 0 ? <p className="mt-6 rounded-xl border border-dashed border-slate-200 p-6 text-center text-xs text-slate-500">No orders recorded yet.</p> : <div className="mt-4 divide-y divide-slate-100">{orders.map((order) => <div key={order.id} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-mono text-xs font-bold text-slate-800">#{order.id}</p><p className="mt-1 text-xs text-slate-500">{order.user_email}</p></div><div className="flex items-center gap-4 text-xs"><span className="font-bold text-slate-900">{formatTk(order.total_amount)}</span><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600">{order.status || "Unknown status"}</span><span className="hidden items-center gap-1 text-slate-400 md:flex"><Clock className="h-3 w-3" />{order.created_at || "No date"}</span></div></div>)}</div>}</section>;
+}

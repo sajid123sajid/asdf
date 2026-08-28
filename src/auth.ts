@@ -25,6 +25,7 @@ const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
 const GOOGLE_STATE_COOKIE = "zupona_google_oauth_state";
+const GOOGLE_RETURN_COOKIE = "zupona_google_return";
 
 const SESSION_COOKIE = "zupona_session";
 const COOKIE_OPTIONS = {
@@ -206,6 +207,13 @@ async function signInUser(user: UserRecord): Promise<{ user: SafeUser; sessionId
   return { user: safeUser, sessionId: session.id };
 }
 
+async function requireAuthenticatedUser(): Promise<UserRecord> {
+  const sessionId = await readSessionCookie(SESSION_COOKIE);
+  const user = sessionId ? await getUserBySession(sessionId) : null;
+  if (!user) throw new Error("You must be signed in to place an order.");
+  return user;
+}
+
 /**
  * Authentication server function: Handles both Sign In and Sign Up with secure password hashing.
  */
@@ -266,7 +274,9 @@ export const authenticate = createServerFn({ method: "POST" })
     return await createAccount();
   });
 
-export const getGoogleAuthUrl = createServerFn({ method: "GET" }).handler(async () => {
+export const getGoogleAuthUrl = createServerFn({ method: "GET" })
+  .validator((data?: { returnTo?: string }) => data ?? {})
+  .handler(async ({ data }) => {
   const { clientId, redirectUri } = getGoogleConfig();
   if (!clientId) {
     throw new Error("Google OAuth is not configured. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET as server secrets.");
@@ -279,6 +289,13 @@ export const getGoogleAuthUrl = createServerFn({ method: "GET" }).handler(async 
     httpOnly: true,
     sameSite: "lax",
   });
+  if (data.returnTo) {
+    setCookie(GOOGLE_RETURN_COOKIE, data.returnTo, {
+      ...COOKIE_OPTIONS,
+      httpOnly: true,
+      sameSite: "lax",
+    });
+  }
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -290,8 +307,8 @@ export const getGoogleAuthUrl = createServerFn({ method: "GET" }).handler(async 
     prompt: "consent",
   });
 
-  return `${GOOGLE_AUTH_URL}?${params.toString()}`;
-});
+    return `${GOOGLE_AUTH_URL}?${params.toString()}`;
+  });
 
 export const completeGoogleLogin = createServerFn({ method: "POST" })
   .validator((data: { code?: string; state?: string }) => data)
@@ -303,8 +320,10 @@ export const completeGoogleLogin = createServerFn({ method: "POST" })
 
     const { getCookie, deleteCookie } = await getCookieHelpers();
     let storedState: string | undefined;
+    let returnTo: string | undefined;
     try {
       storedState = getCookie(GOOGLE_STATE_COOKIE);
+      returnTo = getCookie(GOOGLE_RETURN_COOKIE);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (!/No StartEvent found in AsyncLocalStorage|server runtime/i.test(message)) {
@@ -317,6 +336,7 @@ export const completeGoogleLogin = createServerFn({ method: "POST" })
     }
 
     deleteCookie(GOOGLE_STATE_COOKIE, { path: "/" });
+    deleteCookie(GOOGLE_RETURN_COOKIE, { path: "/" });
 
     if (!isGoogleConfigured()) {
       throw new Error("Google OAuth is not configured on this server.");
@@ -352,7 +372,7 @@ export const completeGoogleLogin = createServerFn({ method: "POST" })
     }
 
     const signedIn = await signInUser(user);
-    return { status: "signed_in" as const, user: signedIn.user };
+    return { status: "signed_in" as const, user: signedIn.user, returnTo };
   });
 
 /**
@@ -437,6 +457,7 @@ export const placeOrder = createServerFn({ method: "POST" })
     }) => data
   )
   .handler(async ({ data }): Promise<OrderRecord> => {
+    const sessionUser = await requireAuthenticatedUser();
     if (!Array.isArray(data.items) || data.items.length === 0 || data.items.length > 50) {
       throw new Error("Your cart is empty or too large.");
     }
@@ -479,10 +500,7 @@ export const placeOrder = createServerFn({ method: "POST" })
 
     const delivery = subtotal >= 999 ? 0 : 60;
     const totalAmount = subtotal + delivery;
-    const { getCookie } = await loadCookieHelpers();
-    const sessionId = getCookie(SESSION_COOKIE);
-    const sessionUser = sessionId ? await getUserBySession(sessionId) : null;
-    const userEmail = sessionUser?.email || data.email || "guest@zupona.com";
+    const userEmail = sessionUser.email;
 
     const orderId = `ZUP-${crypto.randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase()}`;
 

@@ -30,7 +30,7 @@ function GoogleCallbackPage() {
         const result = await completeGoogleLogin({ data: { code, state } });
         toast.success("Signed in with Google successfully.");
         await router.invalidate();
-        await router.navigate({ to: result.user.role === "owner" ? "/admin/dashboard" : "/account" });
+        await router.navigate({ to: result.returnTo || (result.user.role === "owner" ? "/admin/dashboard" : "/account") });
       } catch (error: unknown) {
         toast.error(errorMessage(error));
         router.navigate({ to: "/account" });

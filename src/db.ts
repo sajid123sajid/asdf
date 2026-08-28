@@ -32,6 +32,35 @@ export interface OrderRecord {
   created_at?: string;
 }
 
+export interface AdminDashboardOverview {
+  metrics: {
+    revenue: number | null;
+    orders: number | null;
+    products: number | null;
+    customers: number | null;
+  };
+  recentOrders: OrderRecord[];
+  productHealth: {
+    total: number | null;
+    published: number | null;
+    unpublished: number | null;
+    lowStock: number | null;
+    outOfStock: number | null;
+  };
+  sales: Array<{ date: string; revenue: number; orders: number }>;
+  activity: Array<{
+    id: string;
+    type: "order" | "product" | "user";
+    label: string;
+    detail: string;
+    created_at: string;
+  }>;
+  health: {
+    database: "available" | "unavailable";
+    categories: number | null;
+  };
+}
+
 // In-memory fallback for local dev when Cloudflare D1 binding is not active
 const memoryUsers = new Map<string, UserRecord>();
 const memoryOrders = new Map<string, OrderRecord>();
@@ -429,6 +458,105 @@ export async function getAllOrders(customEnv?: any): Promise<OrderRecord[]> {
   return Array.from(memoryOrders.values()).sort((a, b) =>
     (b.created_at || "").localeCompare(a.created_at || "")
   );
+}
+
+export async function getAdminDashboardOverview(customEnv?: any): Promise<AdminDashboardOverview> {
+  const db = getD1Database(customEnv);
+  if (!db) {
+    return {
+      metrics: { revenue: null, orders: null, products: null, customers: null },
+      recentOrders: [],
+      productHealth: { total: null, published: null, unpublished: null, lowStock: null, outOfStock: null },
+      sales: [],
+      activity: [],
+      health: { database: "unavailable", categories: null },
+    };
+  }
+
+  await ensureTables(db);
+  const [metrics, productHealth, recentOrders, sales, activity, categories] = await Promise.all([
+    db.prepare(
+      `SELECT
+        (SELECT COALESCE(SUM(total_amount), 0) FROM orders) AS revenue,
+        (SELECT COUNT(*) FROM orders) AS orders,
+        (SELECT COUNT(*) FROM products) AS products,
+        (SELECT COUNT(*) FROM users WHERE role = 'customer') AS customers`
+    ).first(),
+    db.prepare(
+      `SELECT
+        COUNT(*) AS total,
+        SUM(CASE WHEN publish_status = 'published' AND status = 'active' THEN 1 ELSE 0 END) AS published,
+        SUM(CASE WHEN publish_status <> 'published' OR status <> 'active' THEN 1 ELSE 0 END) AS unpublished,
+        SUM(CASE WHEN stock > 0 AND stock <= 5 THEN 1 ELSE 0 END) AS low_stock,
+        SUM(CASE WHEN stock = 0 THEN 1 ELSE 0 END) AS out_of_stock
+       FROM products`
+    ).first(),
+    db.prepare("SELECT * FROM orders ORDER BY created_at DESC LIMIT 8").all(),
+    db.prepare(
+      `SELECT substr(created_at, 1, 10) AS date, COALESCE(SUM(total_amount), 0) AS revenue, COUNT(*) AS orders
+       FROM orders
+       WHERE created_at IS NOT NULL
+       GROUP BY substr(created_at, 1, 10)
+       ORDER BY date ASC
+       LIMIT 30`
+    ).all(),
+    db.prepare(
+      `SELECT id, 'product' AS type, action AS label, entity_type || ' ' || entity_id AS detail, created_at
+       FROM audit_logs
+       UNION ALL
+       SELECT id, 'order' AS type, 'Order created' AS label, id AS detail, created_at
+       FROM orders
+       UNION ALL
+       SELECT CAST(id AS TEXT), 'user' AS type, 'Customer registered' AS label, email AS detail, created_at
+       FROM users
+       ORDER BY created_at DESC
+       LIMIT 12`
+    ).all(),
+    db.prepare("SELECT COUNT(*) AS count FROM categories WHERE is_active = 1").first(),
+  ]);
+
+  const asRecord = (value: unknown): Record<string, unknown> => value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const asNumber = (value: unknown): number | null => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+  const metricRow = asRecord(metrics);
+  const healthRow = asRecord(productHealth);
+  const recent = (recentOrders.results ?? []) as OrderRecord[];
+  const salesRows = (sales.results ?? [] as unknown[]).map((row: unknown) => {
+    const item = asRecord(row);
+    return { date: String(item["date"] ?? ""), revenue: asNumber(item["revenue"]) ?? 0, orders: asNumber(item["orders"]) ?? 0 };
+  }).filter((item: { date: string }) => item.date);
+  const activityRows = (activity.results ?? [] as unknown[]).map((row: unknown) => {
+    const item = asRecord(row);
+    return {
+      id: String(item["id"] ?? crypto.randomUUID()),
+      type: (item["type"] === "product" || item["type"] === "user" ? item["type"] : "order") as "order" | "product" | "user",
+      label: String(item["label"] ?? "Activity"),
+      detail: String(item["detail"] ?? ""),
+      created_at: String(item["created_at"] ?? ""),
+    };
+  }).filter((item: { created_at: string }) => item.created_at);
+
+  return {
+    metrics: {
+      revenue: asNumber(metricRow["revenue"]),
+      orders: asNumber(metricRow["orders"]),
+      products: asNumber(metricRow["products"]),
+      customers: asNumber(metricRow["customers"]),
+    },
+    recentOrders: recent,
+    productHealth: {
+      total: asNumber(healthRow["total"]),
+      published: asNumber(healthRow["published"]),
+      unpublished: asNumber(healthRow["unpublished"]),
+      lowStock: asNumber(healthRow["low_stock"]),
+      outOfStock: asNumber(healthRow["out_of_stock"]),
+    },
+    sales: salesRows,
+    activity: activityRows,
+    health: { database: "available", categories: asNumber(asRecord(categories)["count"]) },
+  };
 }
 
 /**
