@@ -1,19 +1,19 @@
-const catBath = new URL("../../assets/cat-bath.jpg", import.meta.url).href;
-const catBeauty = new URL("../../assets/cat-beauty.jpg", import.meta.url).href;
-const catMensAcc = new URL("../../assets/cat-mens-acc.jpg", import.meta.url).href;
-const catWomensAcc = new URL("../../assets/cat-womens-acc.jpg", import.meta.url).href;
-const catMensFashion = new URL("../../assets/cat-mens-fashion.jpg", import.meta.url).href;
-const catWomensFashion = new URL("../../assets/cat-womens-fashion.jpg", import.meta.url).href;
-const catBaby = new URL("../../assets/cat-baby.jpg", import.meta.url).href;
-const catToys = new URL("../../assets/cat-toys.jpg", import.meta.url).href;
-const catHome = new URL("../../assets/cat-home.jpg", import.meta.url).href;
-const pSoap = new URL("../../assets/p-soap.jpg", import.meta.url).href;
-const pBar = new URL("../../assets/p-bar.jpg", import.meta.url).href;
-const pSerum = new URL("../../assets/p-serum.jpg", import.meta.url).href;
-const pWatch = new URL("../../assets/p-watch.jpg", import.meta.url).href;
-const pWatchRose = new URL("../../assets/p-watch-rose.jpg", import.meta.url).href;
-const pPolo = new URL("../../assets/p-polo.jpg", import.meta.url).href;
-const pShirtMan = new URL("../../assets/p-shirt-man.jpg", import.meta.url).href;
+const catBath = "/assets/cat-bath.jpg";
+const catBeauty = "/assets/cat-beauty.jpg";
+const catMensAcc = "/assets/cat-mens-acc.jpg";
+const catWomensAcc = "/assets/cat-womens-acc.jpg";
+const catMensFashion = "/assets/cat-mens-fashion.jpg";
+const catWomensFashion = "/assets/cat-womens-fashion.jpg";
+const catBaby = "/assets/cat-baby.jpg";
+const catToys = "/assets/cat-toys.jpg";
+const catHome = "/assets/cat-home.jpg";
+const pSoap = "/assets/p-soap.jpg";
+const pBar = "/assets/p-bar.jpg";
+const pSerum = "/assets/p-serum.jpg";
+const pWatch = "/assets/p-watch.jpg";
+const pWatchRose = "/assets/p-watch-rose.jpg";
+const pPolo = "/assets/p-polo.jpg";
+const pShirtMan = "/assets/p-shirt-man.jpg";
 
 export type Category = { slug: string; name: string; image: string };
 

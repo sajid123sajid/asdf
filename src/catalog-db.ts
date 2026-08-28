@@ -180,6 +180,13 @@ function mediaUrl(objectKey: string): string {
   return `/media/${objectKey.split("/").map(encodeURIComponent).join("/")}`;
 }
 
+function normalizeImageReference(value: string): string {
+  const reference = value.trim();
+  if (!reference) return "";
+  if (/^(https?:)?\/\//i.test(reference) || reference.startsWith("/")) return reference;
+  throw new Error("Use an HTTP(S) image URL or a root-relative image path.");
+}
+
 function rowToCatalogItem(row: ProductRow, imageRows: ImageRow[], variantRows: VariantRow[] = []): CatalogItem {
   const id = asString(row["id"]);
   const imageKeys = imageRows
@@ -254,7 +261,7 @@ function normalizeInput(input: CatalogProductInput): Required<CatalogProductInpu
   const publishStatus = ["draft", "review", "published", "scheduled", "archived"].includes(input.publishStatus ?? "draft")
     ? (input.publishStatus ?? "draft")
     : "draft";
-  const galleryImages = Array.from(new Set([...(input.galleryImages ?? []), input.image ?? ""].map((value) => value.trim()).filter(Boolean)));
+  const galleryImages = Array.from(new Set([...(input.galleryImages ?? []), input.image ?? ""].map(normalizeImageReference).filter(Boolean)));
   const galleryImageAlts = galleryImages.map((_, index) => (input.galleryImageAlts?.[index] ?? "").trim().slice(0, 240));
 
   return {
@@ -411,7 +418,7 @@ export async function saveCatalogProduct(input: CatalogProductInput, actorId: nu
           ...(variant.oldPrice !== undefined ? { oldPrice: variant.oldPrice } : {}),
           stock: Math.max(0, Math.floor(Number(variant.stock) || 0)),
           lowStockThreshold: Math.max(0, Math.floor(Number(variant.lowStockThreshold) || 5)),
-          ...(variant.image ? { image: variant.image } : {}),
+          ...(variant.image ? { image: normalizeImageReference(variant.image) } : {}),
           isActive: variant.isActive !== false,
         })),
       },

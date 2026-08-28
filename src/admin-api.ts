@@ -9,11 +9,8 @@ import {
   type CatalogProductInput,
 } from "./catalog-db.ts";
 import { getAllOrders, getOrderById, updateOrderStatus, type OrderRecord } from "./db.ts";
-import { getProductMediaBucket } from "./media.ts";
 import { z } from "zod";
 
-const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
-const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"]);
 const ORDER_STATUSES = new Set([
   "Order confirmed",
   "Processing",
@@ -24,22 +21,10 @@ const ORDER_STATUSES = new Set([
   "Returned",
 ]);
 
-function fromDataUrl(dataUrl: string): { contentType: string; bytes: ArrayBuffer } {
-  const match = /^data:([^;,]+);base64,([a-zA-Z0-9+/=]+)$/.exec(dataUrl);
-  if (!match?.[1] || !match[2]) throw new Error("Invalid image file.");
-  const contentType = match[1].toLowerCase();
-  if (!ALLOWED_IMAGE_TYPES.has(contentType)) throw new Error("Use a JPG, PNG, WebP, GIF, or AVIF image.");
-  const binary = atob(match[2]);
-  if (binary.length === 0 || binary.length > MAX_IMAGE_BYTES) throw new Error("Images must be smaller than 8 MB.");
-  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
-  return { contentType, bytes: bytes.buffer };
-}
-
-function safeFileName(name: string, contentType: string): string {
-  const extension = contentType.split("/")[1] ?? "image";
-  const base = name.trim().toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 80);
-  return base.includes(".") ? base : `${base || "product"}.${extension}`;
-}
+const imageReferenceValidator = z.string().trim().max(2048).refine(
+  (value) => /^(https?:)?\/\//i.test(value) || value.startsWith("/"),
+  "Use an HTTP(S) image URL or a root-relative image path.",
+);
 
 type SerializableValue = string | number | boolean | null | SerializableValue[] | { [key: string]: SerializableValue };
 type SiteSettings = Record<string, SerializableValue>;
@@ -54,6 +39,9 @@ const catalogProductValidator = z.object({
   slug: z.string().max(120).optional(),
   sku: z.string().max(120).optional(),
   productType: z.enum(["physical", "digital", "service"]).optional(),
+  image: imageReferenceValidator.optional(),
+  galleryImages: z.array(imageReferenceValidator).max(50).optional(),
+  galleryImageAlts: z.array(z.string().max(240)).max(50).optional(),
   variantSkus: z.array(z.object({
     id: z.string().max(120).optional(),
     sku: z.string().trim().min(1).max(120),
@@ -63,7 +51,7 @@ const catalogProductValidator = z.object({
     oldPrice: z.number().finite().min(0).optional(),
     stock: z.number().int().min(0).max(1_000_000).optional(),
     lowStockThreshold: z.number().int().min(0).max(1_000_000).optional(),
-    image: z.string().max(1024).optional(),
+    image: imageReferenceValidator.optional(),
     isActive: z.boolean().optional(),
   })).max(100).optional(),
 }).passthrough();
@@ -134,19 +122,4 @@ export const saveAdminSetting = createServerFn({ method: "POST" })
     const user = await requireAdminUser();
     await saveSiteSetting(data.key, data.value, user.id, user.role);
     return { success: true };
-  });
-
-export const uploadProductMedia = createServerFn({ method: "POST" })
-  .validator((data: { fileName: string; dataUrl: string }) => data)
-  .handler(async ({ data }) => {
-    const user = await requireAdminUser();
-    const bucket = getProductMediaBucket();
-    if (!bucket) throw new Error("R2 product media storage is not configured yet.");
-    const upload = fromDataUrl(data.dataUrl);
-    const key = `products/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}-${safeFileName(data.fileName, upload.contentType)}`;
-    await bucket.put(key, upload.bytes, {
-      httpMetadata: { contentType: upload.contentType },
-      customMetadata: { uploadedBy: String(user.id), uploadedAt: new Date().toISOString() },
-    });
-    return { key, url: `/media/${key.split("/").map(encodeURIComponent).join("/")}` };
   });

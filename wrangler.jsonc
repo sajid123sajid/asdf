@@ -4,6 +4,7 @@
   "compatibility_date": "2026-08-01",
   "compatibility_flags": ["nodejs_compat"],
   "main": "./src/server.ts",
+  "workers_dev": true,
   "assets": {
     "directory": "./dist/client"
   },
@@ -27,12 +28,6 @@
       "database_name": "zupona-db",
       "database_id": "8f4a933e-9452-48b4-9a4a-b266df4b0021",
       "migrations_dir": "migrations"
-    }
-  ],
-  "r2_buckets": [
-    {
-      "binding": "PRODUCT_MEDIA",
-      "bucket_name": "zupona-product-media"
     }
   ]
 }

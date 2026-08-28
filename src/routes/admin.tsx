@@ -1,4 +1,4 @@
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, redirect } from "@tanstack/react-router";
 import { useState, useMemo, useEffect } from "react";
 import {
   Package,
@@ -49,10 +49,11 @@ import {
   saveAdminProduct,
   saveAdminSetting,
   updateAdminOrderStatus,
-  uploadProductMedia,
 } from "@/admin-api";
 import { getCurrentUser } from "@/auth";
 import type { OrderRecord } from "@/db";
+import { AdminShell } from "@/components/admin/AdminShell";
+import type { AdminSection } from "@/components/admin/AdminSidebar";
 
 export const Route = createFileRoute("/admin")({
   beforeLoad: async ({ location }) => {
@@ -68,8 +69,12 @@ export const Route = createFileRoute("/admin")({
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),
-  component: AdminPage,
+  component: AdminLayout,
 });
+
+function AdminLayout() {
+  return <Outlet />;
+}
 
 type TabType = "catalog" | "new" | "orders" | "settings" | "tools";
 
@@ -146,7 +151,7 @@ export function AdminPage() {
   const [variantInput, setVariantInput] = useState("");
   const [adminState, setAdminState] = useState<"loading" | "ready" | "denied">("loading");
   const [adminMessage, setAdminMessage] = useState("");
-  const [uploadingImage, setUploadingImage] = useState(false);
+  const [imageUrlInput, setImageUrlInput] = useState("");
 
   const [orders, setOrders] = useState<OrderRecord[]>([]);
   const [siteSettings, setSiteSettings] = useState<Record<string, unknown>>({});
@@ -156,6 +161,21 @@ export function AdminPage() {
     home_title: "Better essentials, delivered faster.",
     home_subtitle: "Premium products curated for daily life and smart living.",
   });
+
+  const activeSection: AdminSection = activeTab === "orders"
+    ? "orders"
+    : activeTab === "settings"
+      ? "settings"
+      : activeTab === "tools"
+        ? "tools"
+        : "catalog";
+
+  const handleSectionChange = (section: AdminSection) => {
+    if (section === "orders") setActiveTab("orders");
+    else if (section === "settings") setActiveTab("settings");
+    else if (section === "tools") setActiveTab("tools");
+    else setActiveTab("catalog");
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -555,33 +575,23 @@ export function AdminPage() {
     }
   };
 
-  const handleProductImageUpload = async (files: FileList | null | undefined) => {
-    if (!files?.length) return;
-    const selectedFiles = Array.from(files);
-    if (selectedFiles.some((file) => !file.type.startsWith("image/") || file.size > 8 * 1024 * 1024)) {
-      toast.error("Choose images smaller than 8 MB.");
+  const handleAddImageUrl = () => {
+    const imageUrl = imageUrlInput.trim();
+    if (!imageUrl || (!imageUrl.startsWith("/") && !/^https?:\/\//i.test(imageUrl))) {
+      toast.error("Enter an image URL or root-relative image path.");
       return;
     }
-    setUploadingImage(true);
-    try {
-      const uploadedImages: string[] = [];
-      for (const file of selectedFiles) {
-        const dataUrl = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onerror = () => reject(new Error("Could not read this image."));
-          reader.onload = () => resolve(String(reader.result));
-          reader.readAsDataURL(file);
-        });
-        const uploaded = await uploadProductMedia({ data: { fileName: file.name, dataUrl } });
-        uploadedImages.push(uploaded.url);
-      }
-      setForm((current) => ({ ...current, image: current.image || uploadedImages[0] || "", galleryImages: Array.from(new Set([...current.galleryImages, ...uploadedImages])), galleryImageAlts: [...current.galleryImageAlts, ...uploadedImages.map(() => "")] }));
-      toast.success(`${uploadedImages.length} image${uploadedImages.length === 1 ? "" : "s"} uploaded to Cloudflare R2.`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not upload image.");
-    } finally {
-      setUploadingImage(false);
+    if (form.galleryImages.includes(imageUrl)) {
+      toast.error("That image is already in the gallery.");
+      return;
     }
+    setForm((current) => ({
+      ...current,
+      image: current.image || imageUrl,
+      galleryImages: [...current.galleryImages, imageUrl],
+      galleryImageAlts: [...current.galleryImageAlts, ""],
+    }));
+    setImageUrlInput("");
   };
 
   const handleSaveSetting = async (key: string, value: string) => {
@@ -764,6 +774,12 @@ export function AdminPage() {
     form.oldPrice > form.price ? Math.round(((form.oldPrice - form.price) / form.oldPrice) * 100) : 0;
 
   return (
+    <AdminShell
+      activeSection={activeSection}
+      onSectionChange={handleSectionChange}
+      searchQuery={searchQuery}
+      onSearchChange={setSearchQuery}
+    >
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(255,180,0,0.15),_transparent_35%),_#f4f3f0] pb-16 pt-4">
       <div className="mx-auto max-w-[1360px] px-3 sm:px-5">
         <div className="overflow-hidden rounded-[28px] border border-[#e3dfd9] bg-white shadow-[0_24px_80px_rgba(15,23,42,0.08)] ring-1 ring-black/5">
@@ -1676,27 +1692,21 @@ export function AdminPage() {
                     <div className="mt-3 space-y-2">
                       <div>
                         <label className="block text-xs font-semibold text-foreground">Image URL / Path</label>
-                        <input
-                          type="text"
-                          value={form.image}
-                          onChange={(e) => setForm((prev) => ({ ...prev, image: e.target.value }))}
-                          placeholder="Paste image URL or pick a preset below"
-                          className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground outline-none focus:border-gold"
-                        />
+                        <div className="mt-1 flex gap-2">
+                          <input
+                            type="text"
+                            value={imageUrlInput}
+                            onChange={(e) => setImageUrlInput(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddImageUrl(); } }}
+                            placeholder="https://... or /images/product.jpg"
+                            className="w-full rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground outline-none focus:border-gold"
+                          />
+                          <button type="button" onClick={handleAddImageUrl} className="shrink-0 rounded-lg bg-gold px-3 py-2 text-xs font-bold text-primary-foreground hover:bg-gold-deep">Add</button>
+                        </div>
+                        {imageUrlInput.trim() && (
+                          <img src={imageUrlInput.trim()} alt="Image URL preview" className="mt-2 h-20 w-20 rounded-lg border border-border object-cover" />
+                        )}
                       </div>
-
-                      <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-dashed border-gold/50 bg-gold/5 px-3 py-2 text-xs font-semibold text-gold-deep hover:bg-gold/10">
-                        <span>{uploadingImage ? "Uploading image to R2…" : "Upload a product image from your computer"}</span>
-                        <span className="rounded bg-gold px-2 py-1 text-[10px] font-bold text-primary-foreground">Choose image</span>
-                        <input
-                          type="file"
-                          accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
-                          disabled={uploadingImage}
-                          multiple
-                          onChange={(event) => void handleProductImageUpload(event.target.files)}
-                          className="sr-only"
-                        />
-                      </label>
 
                       {form.galleryImages.length > 0 && (
                         <div>
@@ -2078,5 +2088,6 @@ export function AdminPage() {
         </div>
       )}
     </div>
+    </AdminShell>
   );
 }

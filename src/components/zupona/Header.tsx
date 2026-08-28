@@ -7,7 +7,6 @@ import { CategoryTabs } from "./CategoryTabs";
 import { useShop } from "./shop-store";
 import { useHideOnScroll } from "@/hooks/use-scroll-direction";
 import { useIsMobile } from "@/hooks/use-mobile";
-import logoAsset from "@/assets/zupona-logo.png.asset.json";
 
 
 export function Header() {
@@ -106,7 +105,7 @@ export function Header() {
             aria-label="Zupona home"
           >
             <img
-              src={logoAsset.url}
+              src="/favicon.png"
               alt="Zupona"
               width={640}
               height={200}
