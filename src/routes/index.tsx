@@ -2,14 +2,11 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowRight, ChevronRight } from "lucide-react";
 
 import heroCouple from "@/assets/hero-couple.jpg";
-import { BenefitsBar } from "@/components/zupona/BenefitsBar";
 import { BrandStrip } from "@/components/zupona/BrandStrip";
 import { CategoryStrip } from "@/components/zupona/CategoryStrip";
-import { DealStrip } from "@/components/zupona/DealStrip";
 import { ProductCard } from "@/components/zupona/ProductCard";
 import { ProductRail } from "@/components/zupona/ProductRail";
 import { useShop } from "@/components/zupona/shop-store";
-import { useFlashDeal } from "@/hooks/use-flash-deal";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -34,8 +31,6 @@ export const Route = createFileRoute("/")({
 });
 
 function Index() {
-  const { expired, ready } = useFlashDeal();
-  const dealsOver = ready && expired;
   const { products, bestSelling, topPicks, deals } = useShop();
 
   return (
@@ -80,32 +75,16 @@ function Index() {
           </div>
         </section>
 
-        <BenefitsBar />
-
-        <DealStrip />
-
         <div className="hidden md:block">
           <CategoryStrip />
         </div>
 
-        {dealsOver ? (
-          <section
-            aria-label="Deals of the Day"
-            className="rounded-2xl border border-border bg-card px-4 py-6 text-center"
-          >
-            <p className="text-base font-extrabold text-foreground">Deals of the Day ended</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Fresh flash deals unlock at midnight. Browse everything else meanwhile.
-            </p>
-          </section>
-        ) : (
-          <ProductRail
-            id="deals-rail"
-            title="Deals of the Day"
-            products={deals.slice(0, 8)}
-            viewAllTo="/deals"
-          />
-        )}
+        <ProductRail
+          id="deals-rail"
+          title="Deals of the Day"
+          products={deals.slice(0, 8)}
+          viewAllTo="/deals"
+        />
 
         {/* Best Selling */}
         <section aria-labelledby="best-selling" className="relative mt-4 rounded-2xl bg-card px-2 py-3 sm:mt-8 sm:px-4 sm:py-5">

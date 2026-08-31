@@ -56,6 +56,7 @@ export type CatalogProductInput = {
   scheduledFor?: string;
   galleryImages?: string[];
   galleryImageAlts?: string[];
+  productVideo?: string;
   image?: string;
   publishStatus?: "draft" | "review" | "published" | "scheduled" | "archived";
 };
@@ -76,6 +77,34 @@ type Database = {
 
 const memoryCatalog = new Map<string, CatalogItem>();
 const memorySettings = new Map<string, unknown>();
+
+const productColumnNames = [
+  "id", "slug", "name", "brand", "category_slug", "description", "short_description", "price", "old_price", "stock",
+  "rating", "reviews", "features_json", "specs_json", "variants_json", "variant_label", "best_selling", "top_pick",
+  "status", "sku", "product_type", "bullet_points_json", "search_keywords", "published_at", "scheduled_for",
+  "review_status", "return_policy", "shipping_notes", "tags_json", "attributes_json", "seo_title", "seo_description",
+  "publish_status", "product_video",
+] as const;
+
+function buildProductInsertValues(product: Required<CatalogProductInput>) {
+  const values = [
+    product.id, product.slug, product.name, product.brand, product.category, product.description, product.shortDescription,
+    product.price, product.oldPrice, product.stock, product.rating, product.reviews,
+    JSON.stringify(product.features), JSON.stringify(product.specs), JSON.stringify(product.variants), product.variantLabel,
+    product.bestSelling ? 1 : 0, product.topPick ? 1 : 0, product.status,
+    product.sku, product.productType, JSON.stringify(product.bulletPoints), product.searchKeywords,
+    product.publishStatus === "published" ? new Date().toISOString() : null, product.scheduledFor || null,
+    product.reviewStatus, product.returnPolicy, product.shippingNotes,
+    JSON.stringify(product.tags), JSON.stringify(product.attributes), product.seoTitle, product.seoDescription,
+    product.publishStatus, product.productVideo,
+  ];
+
+  if (productColumnNames.length !== values.length) {
+    throw new Error(`Product insert mismatch: ${productColumnNames.length} columns but ${values.length} values.`);
+  }
+
+  return values;
+}
 
 function asDatabase(value: unknown): Database | null {
   if (!value || typeof value !== "object" || !("prepare" in value)) return null;
@@ -241,6 +270,7 @@ function rowToCatalogItem(row: ProductRow, imageRows: ImageRow[], variantRows: V
       seoDescription: asString(row["seo_description"]),
       publishStatus: (asString(row["publish_status"], "draft") as "draft" | "review" | "published" | "scheduled" | "archived"),
       catalogStatus: (asString(row["status"], "active") as "draft" | "active" | "archived"),
+      productVideo: asString(row["product_video"]),
     },
     status: (asString(row["status"], "active") as CatalogStatus),
   };
@@ -310,6 +340,7 @@ function normalizeInput(input: CatalogProductInput): Required<CatalogProductInpu
     galleryImageAlts,
     image: galleryImages[0] ?? "",
     publishStatus,
+    productVideo: normalizeImageReference(input.productVideo ?? ""),
   };
 }
 
@@ -397,6 +428,7 @@ export async function saveCatalogProduct(input: CatalogProductInput, actorId: nu
       detail: {
         images: product.galleryImages,
         imageAlts: product.galleryImageAlts,
+        productVideo: product.productVideo,
         description: product.description,
         shortDescription: product.shortDescription,
         features: product.features,
@@ -428,14 +460,14 @@ export async function saveCatalogProduct(input: CatalogProductInput, actorId: nu
     return item;
   }
 
+  const productValues = buildProductInsertValues(product);
+  const productPlaceholders = productColumnNames.map(() => "?").join(", ");
+
   await db
     .prepare(
       `INSERT INTO products (
-        id, slug, name, brand, category_slug, description, short_description, price, old_price, stock, rating, reviews,
-        features_json, specs_json, variants_json, variant_label, best_selling, top_pick, status,
-        sku, product_type, bullet_points_json, search_keywords, published_at, scheduled_for, review_status, return_policy, shipping_notes,
-        tags_json, attributes_json, seo_title, seo_description, publish_status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ${productColumnNames.join(", ")}
+      ) VALUES (${productPlaceholders})
       ON CONFLICT(id) DO UPDATE SET
         slug = excluded.slug, name = excluded.name, brand = excluded.brand, category_slug = excluded.category_slug,
         description = excluded.description, short_description = excluded.short_description, price = excluded.price,
@@ -449,18 +481,10 @@ export async function saveCatalogProduct(input: CatalogProductInput, actorId: nu
         scheduled_for = excluded.scheduled_for,
         review_status = excluded.review_status, return_policy = excluded.return_policy, shipping_notes = excluded.shipping_notes,
         seo_title = excluded.seo_title, seo_description = excluded.seo_description, publish_status = excluded.publish_status,
+        product_video = excluded.product_video,
         updated_at = CURRENT_TIMESTAMP`
     )
-    .bind(
-      product.id, product.slug, product.name, product.brand, product.category, product.description, product.shortDescription,
-      product.price, product.oldPrice, product.stock, product.rating, product.reviews,
-      JSON.stringify(product.features), JSON.stringify(product.specs), JSON.stringify(product.variants), product.variantLabel,
-      product.bestSelling ? 1 : 0, product.topPick ? 1 : 0, product.status,
-      product.sku, product.productType, JSON.stringify(product.bulletPoints), product.searchKeywords,
-      product.publishStatus === "published" ? new Date().toISOString() : null, product.scheduledFor || null,
-      product.reviewStatus, product.returnPolicy, product.shippingNotes,
-      JSON.stringify(product.tags), JSON.stringify(product.attributes), product.seoTitle, product.seoDescription, product.publishStatus
-    )
+    .bind(...productValues)
     .run();
 
   await db.prepare("DELETE FROM product_images WHERE product_id = ?").bind(product.id).run();

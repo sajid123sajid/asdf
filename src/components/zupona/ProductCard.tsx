@@ -78,23 +78,24 @@ export function ProductCard({
 
 
 
-        <div className="block aspect-square p-2 sm:p-3">
+        <div
+          className="block aspect-square p-2 sm:p-3"
+          style={{ contentVisibility: "auto", contain: "layout paint size" }}
+        >
           <img
             src={product.image}
             alt={`${product.brand} ${product.name}`}
             loading="lazy"
+            decoding="async"
             width={512}
             height={512}
+            sizes="(max-width: 640px) 46vw, (max-width: 1024px) 31vw, 23vw"
             className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-105"
           />
         </div>
       </div>
 
-      {/* Delivery promise */}
-      <div className="mt-1.5 flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-muted-foreground sm:text-[11px]">
-        <Zap className="h-3 w-3 shrink-0 fill-gold text-gold" />
-        60 mins
-      </div>
+
 
       {/* Price section */}
       <div className="mt-1.5">

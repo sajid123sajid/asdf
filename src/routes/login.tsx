@@ -1,12 +1,10 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { getCurrentUser } from "@/auth";
+import { getCurrentUser, sanitizeAppReturnTo } from "@/auth";
 import { AuthPanel } from "@/components/zupona/AuthPanel";
 
 export const Route = createFileRoute("/login")({
   validateSearch: (search: Record<string, unknown>) => ({
-    returnTo: typeof search["returnTo"] === "string" && search["returnTo"].startsWith("/") && !search["returnTo"].startsWith("//")
-      ? search["returnTo"] as string
-      : undefined,
+    returnTo: sanitizeAppReturnTo(typeof search["returnTo"] === "string" ? search["returnTo"] : undefined),
   }),
   beforeLoad: async ({ search }) => {
     const user = await getCurrentUser();

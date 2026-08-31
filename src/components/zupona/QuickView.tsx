@@ -64,10 +64,7 @@ export function QuickView({
               <span>({product.reviews} reviews)</span>
             </div>
 
-            <div className="mt-1 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-              <Zap className="h-3.5 w-3.5 fill-gold text-gold" />
-              Delivery in 60 mins
-            </div>
+
 
             <div className="mt-3 flex items-end gap-2">
               <p className="text-xl font-extrabold text-foreground sm:text-2xl">

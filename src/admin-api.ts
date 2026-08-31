@@ -8,7 +8,7 @@ import {
   saveSiteSetting,
   type CatalogProductInput,
 } from "./catalog-db.ts";
-import { getAdminDashboardOverview as fetchAdminDashboardOverview, getAllOrders, getOrderById, updateOrderStatus, type AdminDashboardOverview, type OrderRecord } from "./db.ts";
+import { getAdminDashboardOverview as getDashboardOverview, getAllOrders, getOrderById, updateOrderStatus, type OrderRecord } from "./db.ts";
 import { z } from "zod";
 
 const ORDER_STATUSES = new Set([
@@ -42,6 +42,7 @@ const catalogProductValidator = z.object({
   image: imageReferenceValidator.optional(),
   galleryImages: z.array(imageReferenceValidator).max(50).optional(),
   galleryImageAlts: z.array(z.string().max(240)).max(50).optional(),
+  productVideo: z.string().trim().max(2048).refine((value) => !value || /^(https?:)?\/\//i.test(value) || value.startsWith("/"), "Use an HTTP(S) video URL or a root-relative media path.").optional(),
   variantSkus: z.array(z.object({
     id: z.string().max(120).optional(),
     sku: z.string().trim().min(1).max(120),
@@ -67,9 +68,9 @@ export const getAdminDashboard = createServerFn({ method: "GET" }).handler(async
   return { user, catalog, orders, settings: settings as SiteSettings };
 });
 
-export const getAdminDashboardOverview = createServerFn({ method: "GET" }).handler(async (): Promise<AdminDashboardOverview> => {
+export const getAdminDashboardOverview = createServerFn({ method: "GET" }).handler(async () => {
   await requireAdminUser();
-  return fetchAdminDashboardOverview();
+  return getDashboardOverview();
 });
 
 export const saveAdminProduct = createServerFn({ method: "POST" })

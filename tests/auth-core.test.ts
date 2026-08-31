@@ -10,6 +10,7 @@ import {
   registerUser,
   verifyPassword,
 } from "../src/db.ts";
+import { configuredRoleFor, sanitizeAppReturnTo } from "../src/auth.ts";
 
 test("passwords are stored as verifiable non-plaintext hashes", async () => {
   const password = "auth-core-password";
@@ -48,4 +49,32 @@ test("sessions resolve to the correct user and logout invalidates them", async (
 
   await deleteSession(session.id);
   assert.equal(await getUserBySession(session.id), null);
+});
+
+test("admin emails from runtime config map to the owner role", async () => {
+  const previousEnv = (globalThis as Record<string, unknown>).__CLOUDFLARE_ENV__;
+  (globalThis as Record<string, unknown>).__CLOUDFLARE_ENV__ = {
+    ADMIN_EMAILS: "owner@example.com, admin@zupona.com",
+  };
+
+  try {
+    assert.equal(configuredRoleFor("owner@example.com"), "owner");
+    assert.equal(configuredRoleFor("customer@example.com"), "customer");
+    assert.equal(configuredRoleFor("ADMIN@ZUPONA.COM"), "owner");
+  } finally {
+    if (previousEnv === undefined) {
+      delete (globalThis as Record<string, unknown>).__CLOUDFLARE_ENV__;
+    } else {
+      (globalThis as Record<string, unknown>).__CLOUDFLARE_ENV__ = previousEnv;
+    }
+  }
+});
+
+test("safe return destinations stay internal while unsafe redirects are rejected", () => {
+  assert.equal(sanitizeAppReturnTo("/checkout"), "/checkout");
+  assert.equal(sanitizeAppReturnTo("/cart?returnTo=%2Fcheckout"), "/cart?returnTo=%2Fcheckout");
+  assert.equal(sanitizeAppReturnTo("/checkout#shipping"), "/checkout#shipping");
+  assert.equal(sanitizeAppReturnTo("https://evil.example/checkout"), undefined);
+  assert.equal(sanitizeAppReturnTo("//evil.example/checkout"), undefined);
+  assert.equal(sanitizeAppReturnTo("javascript:alert(1)"), undefined);
 });

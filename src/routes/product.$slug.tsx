@@ -205,6 +205,7 @@ function ProductPage() {
             images={detail.images}
             alt={`${product.brand} ${product.name}`}
             discount={product.discount}
+            {...(detail.productVideo ? { video: detail.productVideo } : {})}
           />
 
           {/* Info column */}

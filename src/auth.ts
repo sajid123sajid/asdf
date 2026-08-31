@@ -9,6 +9,7 @@ import {
   createSession,
   getUserBySession,
   deleteSession,
+  setUserRole,
   createOrder,
   getUserOrders as fetchUserOrders,
   getOrderById,
@@ -34,6 +35,18 @@ const COOKIE_OPTIONS = {
   maxAge: 60 * 60 * 24 * 30, // 30 days
   sameSite: "lax" as const,
 };
+
+export function sanitizeAppReturnTo(value: string | null | undefined): string | undefined {
+  if (typeof value !== "string") return undefined;
+
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === "/") return trimmed || undefined;
+  if (!trimmed.startsWith("/")) return undefined;
+  if (trimmed.startsWith("//") || trimmed.startsWith("\\\\")) return undefined;
+  if (/^(?:https?:|javascript:|data:)/i.test(trimmed)) return undefined;
+
+  return trimmed;
+}
 
 function getRuntimeEnv() {
   return (globalThis as { __CLOUDFLARE_ENV__?: Record<string, unknown> }).__CLOUDFLARE_ENV__ ?? {};
@@ -176,8 +189,23 @@ async function fetchGoogleUserInfo(accessToken: string) {
   };
 }
 
-function configuredRoleFor(email: string): UserRole {
-  return "customer";
+export function configuredRoleFor(email: string): UserRole {
+  const normalizedEmail = email.trim().toLowerCase();
+  const env = getRuntimeEnv();
+  const configuredAdmins = typeof env["ADMIN_EMAILS"] === "string"
+    ? env["ADMIN_EMAILS"]
+    : typeof env["ADMIN_EMAIL"] === "string"
+      ? env["ADMIN_EMAIL"]
+      : "";
+
+  const adminEmails = new Set(
+    configuredAdmins
+      .split(",")
+      .map((entry) => entry.trim().toLowerCase())
+      .filter(Boolean),
+  );
+
+  return adminEmails.has(normalizedEmail) ? "owner" : "customer";
 }
 
 function toSafeUser(user: UserRecord): SafeUser {
@@ -246,6 +274,12 @@ export const authenticate = createServerFn({ method: "POST" })
       if (!user.password.startsWith("pbkdf2-sha256$")) {
         await updateUserPassword(user.email, await hashPassword(data.password));
       }
+
+      const expectedRole = configuredRoleFor(user.email);
+      if (user.role !== expectedRole && expectedRole === "owner") {
+        user = (await setUserRole(user.id, expectedRole)) ?? user;
+      }
+
       const signedIn = await signInUser(user);
       return { status: "signed_in" as const, user: signedIn.user };
     };
@@ -365,6 +399,11 @@ export const completeGoogleLogin = createServerFn({ method: "POST" })
         "",
         configuredRoleFor(email)
       );
+    }
+
+    const expectedRole = configuredRoleFor(user.email);
+    if (user.role !== expectedRole && expectedRole === "owner") {
+      user = (await setUserRole(user.id, expectedRole)) ?? user;
     }
 
     if (!user.name && displayName) {

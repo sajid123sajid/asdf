@@ -323,6 +323,7 @@ export const variantsFor = (product: Product): string[] =>
 export type ProductDetail = {
   images: string[];
   imageAlts?: string[];
+  productVideo?: string;
   sku?: string;
   productType?: "physical" | "digital" | "service";
   bulletPoints?: string[];
@@ -522,6 +523,8 @@ export const getProductDetail = (product: Product, customDetailsMap?: Record<str
       ? [product.image, catImage]
       : [product.image];
 
+  const mediaVideo = typeof extra?.productVideo === "string" ? extra.productVideo.trim() : undefined;
+
   const defaultSpecs = [
     { label: "Brand", value: product.brand },
     { label: "Category", value: getCategory(product.category)?.name ?? product.category },
@@ -533,6 +536,7 @@ export const getProductDetail = (product: Product, customDetailsMap?: Record<str
 
   return {
     images,
+    productVideo: mediaVideo,
     description:
       extra?.description ??
       `${product.brand} ${product.name}, quality-checked by Zupona and delivered nationwide. Features premium craftsmanship and authentic materials.`,

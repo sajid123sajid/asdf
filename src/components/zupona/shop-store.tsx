@@ -79,15 +79,37 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   // The public storefront always prefers the shared D1 catalog. Local storage is only an offline/demo fallback.
   useEffect(() => {
     let active = true;
-    void getPublicCatalog()
-      .then(({ catalog }) => {
-        if (!active || catalog.length === 0) return;
-        setProductsList(catalog.map((item) => item.product));
-        setDetailsMap(Object.fromEntries(catalog.map((item) => [item.product.slug, item.detail])));
-      })
-      .catch(() => {
-        // Keep the bundled catalog available when running without local Worker bindings.
-      });
+    const loadCatalogAfterIdle = () => {
+      const schedule = (globalThis as typeof globalThis & { requestIdleCallback?: (callback: () => void) => number }).requestIdleCallback;
+      if (schedule) {
+        schedule(() => {
+          void getPublicCatalog()
+            .then(({ catalog }) => {
+              if (!active || catalog.length === 0) return;
+              setProductsList(catalog.map((item) => item.product));
+              setDetailsMap(Object.fromEntries(catalog.map((item) => [item.product.slug, item.detail])));
+            })
+            .catch(() => {
+              // Keep the bundled catalog available when running without local Worker bindings.
+            });
+        });
+        return;
+      }
+
+      window.setTimeout(() => {
+        void getPublicCatalog()
+          .then(({ catalog }) => {
+            if (!active || catalog.length === 0) return;
+            setProductsList(catalog.map((item) => item.product));
+            setDetailsMap(Object.fromEntries(catalog.map((item) => [item.product.slug, item.detail])));
+          })
+          .catch(() => {
+            // Keep the bundled catalog available when running without local Worker bindings.
+          });
+      }, 50);
+    };
+
+    loadCatalogAfterIdle();
     return () => {
       active = false;
     };

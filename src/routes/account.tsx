@@ -89,6 +89,7 @@ function AccountPage() {
       await logout();
       toast.success("You have been signed out.");
       await router.invalidate();
+      await router.navigate({ to: "/login", search: { returnTo: undefined } });
     } catch {
       toast.error("Logout failed. Please try again.");
     }

@@ -1,13 +1,16 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ChevronLeft, Minus, Plus, ReceiptText, ShoppingCart, Tag, Trash2, Truck, X } from "lucide-react";
 import { toast } from "sonner";
+import { getCurrentUser, type SafeUser } from "@/auth";
 import { formatTk } from "./data";
 import { useShop } from "./shop-store";
 
 export function CartDrawer() {
   const navigate = useNavigate();
   const { cartOpen, closeCart, cartItems, cartTotal, cartCount, setQty, removeFromCart } = useShop();
+  const [currentUser, setCurrentUser] = useState<SafeUser | null>(null);
+  const [authState, setAuthState] = useState<"checking" | "authenticated" | "unauthenticated">("checking");
 
   const savings = cartItems.reduce(
     (n, { product, qty }) => n + Math.max(0, product.oldPrice - product.price) * qty,
@@ -15,6 +18,32 @@ export function CartDrawer() {
   );
   const delivery = cartTotal === 0 || cartTotal >= 999 ? 0 : 60;
   const total = cartTotal + delivery;
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadCurrentUser = async () => {
+      try {
+        const user = await getCurrentUser();
+        if (!isMounted) return;
+        setCurrentUser(user);
+        setAuthState(user ? "authenticated" : "unauthenticated");
+      } catch {
+        if (!isMounted) return;
+        setCurrentUser(null);
+        setAuthState("unauthenticated");
+      }
+    };
+
+    if (cartOpen) {
+      setAuthState("checking");
+      void loadCurrentUser();
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [cartOpen]);
 
   useEffect(() => {
     if (!cartOpen) return;
@@ -29,6 +58,33 @@ export function CartDrawer() {
       document.body.style.overflow = prev;
     };
   }, [cartOpen, closeCart]);
+
+  const isCartEmpty = cartItems.length === 0;
+  const isCheckoutDisabled = isCartEmpty || authState === "checking";
+  const checkoutLabel =
+    isCartEmpty
+      ? "Cart is empty"
+      : authState === "checking"
+        ? "Checking session..."
+        : authState === "authenticated"
+          ? `Proceed to Checkout · ${formatTk(total)}`
+          : "Login to Proceed";
+
+  const handleCheckoutClick = () => {
+    if (authState === "checking" || isCartEmpty) return;
+
+    if (authState === "unauthenticated") {
+      closeCart();
+      navigate({ to: "/login", search: { returnTo: "/checkout" } });
+      return;
+    }
+
+    closeCart();
+    navigate({
+      to: "/checkout",
+      search: { slug: cartItems[0]?.product.slug ?? undefined },
+    });
+  };
 
   return (
     <>
@@ -241,17 +297,11 @@ export function CartDrawer() {
         >
           <button
             type="button"
-            disabled={cartItems.length === 0}
-            onClick={() => {
-              closeCart();
-              navigate({
-                to: "/checkout",
-                search: { slug: cartItems[0]?.product.slug ?? undefined },
-              });
-            }}
+            disabled={isCheckoutDisabled}
+            onClick={handleCheckoutClick}
             className="flex w-full items-center justify-center gap-2 rounded-lg bg-gold px-4 py-3 text-sm font-bold text-primary-foreground transition-colors hover:bg-gold-deep disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {cartItems.length === 0 ? "Cart is empty" : <>Proceed to Checkout · {formatTk(total)}</>}
+            {checkoutLabel}
           </button>
         </footer>
       </aside>

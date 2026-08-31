@@ -1,10 +1,10 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "zupona-store",
+  "workers_dev": true,
   "compatibility_date": "2026-08-01",
   "compatibility_flags": ["nodejs_compat"],
   "main": "./src/server.ts",
-  "workers_dev": true,
   "assets": {
     "directory": "./dist/client"
   },
@@ -22,6 +22,12 @@
     "enabled": true,
     "head_sampling_rate": 1
   },
+  "r2_buckets": [
+    {
+      "binding": "PRODUCT_MEDIA",
+      "bucket_name": "zupona-product-media"
+    }
+  ],
   "d1_databases": [
     {
       "binding": "DB",

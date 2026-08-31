@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { Minus, Plus, RotateCcw, ShieldCheck, Truck, PackageCheck, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
@@ -11,6 +11,12 @@ export const Route = createFileRoute("/checkout")({
   validateSearch: (search: Record<string, unknown>) => ({
     slug: typeof search["slug"] === "string" ? (search["slug"] as string) : undefined,
   }),
+  beforeLoad: async () => {
+    const user = await getCurrentUser();
+    if (!user) {
+      throw redirect({ to: "/login", search: { returnTo: "/checkout" } });
+    }
+  },
   loader: async () => {
     try {
       const user = await getCurrentUser();

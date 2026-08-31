@@ -118,6 +118,15 @@ export function Header() {
 
           {/* Mobile actions */}
           <div className="ml-auto flex items-center gap-1 md:hidden">
+            <button
+              type="button"
+              onClick={() => toast.info("Delivery area selection is coming soon")}
+              className="flex items-center gap-1 rounded-full border border-border bg-secondary/80 px-2 py-1 text-[11px] font-medium text-muted-foreground"
+            >
+              <MapPin className="h-3 w-3 shrink-0 text-gold" />
+              <span className="truncate">Dhaka, BD</span>
+              <ChevronDown className="h-3 w-3 shrink-0" />
+            </button>
             <Link
               to="/wishlist"
               aria-label="Wishlist"
@@ -185,21 +194,6 @@ export function Header() {
               Cart
             </button>
           </div>
-        </div>
-
-        {/* Delivery promise — mobile only, Zepto style */}
-        <div className={`mt-1.5 items-center gap-1.5 md:hidden ${isCategoriesPage || isAccountPage ? "hidden" : "flex"}`}>
-          <Zap className="h-3.5 w-3.5 shrink-0 fill-gold text-gold" />
-          <span className="text-[12px] font-extrabold leading-none text-foreground">Delivery in 60 minutes</span>
-          <button
-            type="button"
-            onClick={() => toast.info("Delivery area selection is coming soon")}
-            className="ml-auto flex min-w-0 items-center gap-0.5 text-[11px] font-medium text-muted-foreground"
-          >
-            <MapPin className="h-3 w-3 shrink-0 text-gold" />
-            <span className="truncate">Dhaka, BD</span>
-            <ChevronDown className="h-3 w-3 shrink-0" />
-          </button>
         </div>
 
         {/* Search bar */}

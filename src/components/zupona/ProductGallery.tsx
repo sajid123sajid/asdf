@@ -1,27 +1,88 @@
-import { useEffect, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
+
+export type GallerySlide = {
+  type: "image" | "video";
+  src: string;
+  alt: string;
+};
+
+export function mergeProductMediaItems(images: string[], video?: string): GallerySlide[] {
+  const cleanedImages = Array.from(new Set(images.filter(Boolean).map((src) => src.trim()).filter(Boolean)));
+  const videoSrc = video?.trim();
+
+  if (!cleanedImages.length && !videoSrc) return [];
+  if (!videoSrc) {
+    return cleanedImages.map((src, index) => ({
+      type: "image",
+      src,
+      alt: `Product media ${index + 1}`,
+    }));
+  }
+
+  const hasVideoAlready = cleanedImages.some((src) => src === videoSrc);
+  if (hasVideoAlready) {
+    return cleanedImages.map((src, index) => ({
+      type: src === videoSrc ? "video" : "image",
+      src,
+      alt: src === videoSrc ? "Product video" : `Product media ${index + 1}`,
+    }));
+  }
+
+  const merged: GallerySlide[] = cleanedImages.map((src, index) => ({
+    type: "image",
+    src,
+    alt: `Product media ${index + 1}`,
+  }));
+
+  const insertAt = Math.min(Math.max(1, merged.length > 0 ? 1 : 0), merged.length || 1);
+  merged.splice(insertAt, 0, {
+    type: "video",
+    src: videoSrc,
+    alt: "Product video",
+  });
+
+  return merged;
+}
+
+function buildGallerySlides(images: string[], alt: string, video?: string): GallerySlide[] {
+  const slides = mergeProductMediaItems(images, video);
+  return slides.map((slide, index) => ({
+    ...slide,
+    alt: slide.type === "video" ? `${alt} — product video` : `${alt} — image ${index + 1}`,
+  }));
+}
 
 /**
- * Swipeable product gallery with pagination dots, image counter and a
- * fullscreen viewer. Falls back gracefully to a single beautiful image.
+ * A Zepto-like sequential product gallery that keeps the existing product page
+ * intact while showing the product's real images and video in one swipeable flow.
  */
 export function ProductGallery({
   images,
   alt,
   discount,
+  video,
 }: {
   images: string[];
   alt: string;
   discount?: number;
+  video?: string;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
+  const dragStartX = useRef<number | null>(null);
   const [active, setActive] = useState(0);
   const [zoomed, setZoomed] = useState(false);
 
+  const slides = useMemo(() => buildGallerySlides(images, alt, video), [images, alt, video]);
+
+  useEffect(() => {
+    setActive((current) => Math.min(current, Math.max(slides.length - 1, 0)));
+  }, [slides.length]);
+
   useEffect(() => {
     if (!zoomed) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setZoomed(false);
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setZoomed(false);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -29,43 +90,76 @@ export function ProductGallery({
 
   const onScroll = () => {
     const el = trackRef.current;
-    if (!el) return;
-    const i = Math.round(el.scrollLeft / Math.max(1, el.clientWidth));
-    setActive(Math.min(images.length - 1, Math.max(0, i)));
+    if (!el || !slides.length) return;
+    const nextIndex = Math.round(el.scrollLeft / Math.max(1, el.clientWidth));
+    setActive(Math.min(slides.length - 1, Math.max(0, nextIndex)));
   };
 
-  const goTo = (i: number) => {
+  const goTo = (index: number) => {
     const el = trackRef.current;
-    if (!el) return;
-    el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" });
-    setActive(i);
+    const bounded = Math.min(Math.max(index, 0), slides.length - 1);
+    if (!el || !slides.length) return;
+    el.scrollTo({ left: bounded * el.clientWidth, behavior: "smooth" });
+    setActive(bounded);
   };
+
+  const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    dragStartX.current = event.clientX;
+  };
+
+  const onPointerUp = (event: PointerEvent<HTMLDivElement>) => {
+    if (dragStartX.current == null) return;
+    const delta = event.clientX - dragStartX.current;
+    if (Math.abs(delta) > 60) {
+      goTo(active + (delta < 0 ? 1 : -1));
+    }
+    dragStartX.current = null;
+  };
+
+  const currentSlide = slides[active];
 
   return (
     <div>
-      <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-b from-muted/60 to-card">
+      <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-b from-muted/60 to-card shadow-sm">
         <div
           ref={trackRef}
           onScroll={onScroll}
+          onPointerDown={onPointerDown}
+          onPointerUp={onPointerUp}
           className="flex snap-x snap-mandatory overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
-          {images.map((img, i) => (
-            <button
-              key={`${img}-${i}`}
-              type="button"
-              onClick={() => setZoomed(true)}
-              aria-label="View image fullscreen"
-              className="min-w-full shrink-0 snap-center cursor-zoom-in p-4 sm:p-8"
-            >
-              <img
-                src={img}
-                alt={`${alt} — image ${i + 1}`}
-                width={640}
-                height={640}
-                loading={i === 0 ? "eager" : "lazy"}
-                className="mx-auto h-[260px] w-full object-contain sm:h-[420px]"
-              />
-            </button>
+          {slides.map((slide, index) => (
+            <div key={`${slide.type}-${slide.src}-${index}`} className="min-w-full shrink-0 snap-center p-3 sm:p-6 md:p-8">
+              {slide.type === "video" ? (
+                <div className="flex h-[260px] items-center justify-center overflow-hidden rounded-xl bg-black sm:h-[420px]">
+                  <video
+                    key={slide.src}
+                    controls
+                    preload="metadata"
+                    playsInline
+                    src={slide.src}
+                    className="h-full w-full object-contain bg-black"
+                  />
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setZoomed(true)}
+                  aria-label={`View ${slide.alt}`}
+                  className="block h-[260px] w-full cursor-zoom-in overflow-hidden rounded-xl bg-card sm:h-[420px]"
+                >
+                  <img
+                    src={slide.src}
+                    alt={slide.alt}
+                    width={640}
+                    height={640}
+                    loading={index === 0 ? "eager" : "lazy"}
+                    decoding="async"
+                    className="h-full w-full object-contain"
+                  />
+                </button>
+              )}
+            </div>
           ))}
         </div>
 
@@ -74,28 +168,50 @@ export function ProductGallery({
             -{discount}%
           </span>
         )}
-        {images.length > 1 && (
-          <span className="absolute bottom-3 right-3 rounded-full bg-foreground/70 px-2 py-0.5 text-[11px] font-semibold text-background">
-            {active + 1}/{images.length}
-          </span>
+
+        {slides.length > 1 && (
+          <>
+            <button
+              type="button"
+              aria-label="Previous media"
+              onClick={() => goTo(active - 1)}
+              disabled={active === 0}
+              className="absolute left-2 top-1/2 hidden -translate-y-1/2 place-items-center rounded-full border border-border bg-background/80 p-2 text-foreground shadow-sm transition hover:bg-background md:grid disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              aria-label="Next media"
+              onClick={() => goTo(active + 1)}
+              disabled={active === slides.length - 1}
+              className="absolute right-2 top-1/2 hidden -translate-y-1/2 place-items-center rounded-full border border-border bg-background/80 p-2 text-foreground shadow-sm transition hover:bg-background md:grid disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </button>
+            <span className="absolute bottom-3 right-3 rounded-full bg-foreground/70 px-2 py-0.5 text-[11px] font-semibold text-background">
+              {active + 1}/{slides.length}
+            </span>
+          </>
         )}
       </div>
 
-      {images.length > 1 && (
+      {slides.length > 1 && (
         <div className="mt-3 flex items-center justify-center gap-2">
-          {images.map((img, i) => (
+          {slides.map((slide, index) => (
             <button
-              key={`dot-${img}-${i}`}
+              key={`dot-${slide.type}-${slide.src}-${index}`}
               type="button"
-              aria-label={`Go to image ${i + 1}`}
-              onClick={() => goTo(i)}
-              className={`h-2 rounded-full transition-all ${i === active ? "w-5 bg-gold" : "w-2 bg-border"}`}
+              aria-label={`Go to media ${index + 1}`}
+              aria-pressed={index === active}
+              onClick={() => goTo(index)}
+              className={`h-2.5 rounded-full transition-all ${index === active ? "w-6 bg-gold" : "w-2.5 bg-border"}`}
             />
           ))}
         </div>
       )}
 
-      {zoomed && (
+      {zoomed && currentSlide && currentSlide.type !== "video" && (
         <div
           role="dialog"
           aria-modal="true"
@@ -111,11 +227,7 @@ export function ProductGallery({
           >
             <X className="h-5 w-5" />
           </button>
-          <img
-            src={images[active]}
-            alt={alt}
-            className="max-h-[85vh] w-auto max-w-full object-contain"
-          />
+          <img src={currentSlide.src} alt={currentSlide.alt} className="max-h-[85vh] w-auto max-w-full object-contain" />
         </div>
       )}
     </div>

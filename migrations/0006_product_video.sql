@@ -1,0 +1,1 @@
+ALTER TABLE products ADD COLUMN product_video TEXT NOT NULL DEFAULT '';
