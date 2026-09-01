@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { mergeProductMediaItems } from "../src/components/zupona/ProductGallery.tsx";
+import { mergeProductMediaItems } from "../src/components/zupona/product-gallery-utils.ts";
 
 test("preserves product media order when a video sits between images", () => {
   const ordered = mergeProductMediaItems(

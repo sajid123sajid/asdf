@@ -16,6 +16,7 @@ import { CartDrawer } from "@/components/zupona/CartDrawer";
 import { MobileBottomGroup } from "@/components/zupona/MobileBottomGroup";
 import { ShopProvider } from "@/components/zupona/shop-store";
 import { Toaster } from "@/components/ui/sonner";
+import { shouldShowCartDrawer, shouldShowStoreHeader } from "./-checkout-shell";
 
 
 function NotFoundComponent() {
@@ -123,17 +124,21 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const isAdminRoute = pathname.startsWith("/admin");
+  const isAuthRoute = pathname === "/login" || pathname === "/google-callback";
+  const isCheckoutLikeRoute = pathname === "/cart" || pathname === "/checkout" || pathname.startsWith("/account");
+  const showStoreHeader = shouldShowStoreHeader(pathname);
+  const showMobileBottomGroup = !isAdminRoute && !isAuthRoute && !isCheckoutLikeRoute;
 
   return (
     <QueryClientProvider client={queryClient}>
       <ShopProvider>
         <div className="min-h-screen bg-background pb-20 md:pb-0">
-          {!isAdminRoute && <Header />}
+          {showStoreHeader && <Header />}
           {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
           <Outlet />
-          {!isAdminRoute && <MobileBottomGroup />}
+          {showMobileBottomGroup && <MobileBottomGroup />}
         </div>
-        {!isAdminRoute && <CartDrawer />}
+        {shouldShowCartDrawer(pathname) && <CartDrawer />}
         <Toaster />
       </ShopProvider>
     </QueryClientProvider>

@@ -36,89 +36,63 @@ function CartPage() {
   const delivery = cartTotal === 0 || cartTotal >= 999 ? 0 : 60;
 
   return (
-    <main className="mx-auto max-w-[1200px] px-4 py-6">
-      <h1 className="text-2xl font-bold text-foreground">Shopping Cart</h1>
+    <main className="mx-auto max-w-[1200px] px-3 py-5 sm:px-4 sm:py-6">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Your basket</p>
+          <h1 className="mt-1 text-2xl font-black text-foreground sm:text-3xl">Shopping Cart</h1>
+        </div>
+        <div className="rounded-full border border-border bg-card px-3 py-1.5 text-sm text-muted-foreground shadow-sm">
+          {cartItems.length} item{cartItems.length === 1 ? "" : "s"}
+        </div>
+      </div>
 
       {cartItems.length === 0 ? (
-        <div className="mt-8 flex flex-col items-center gap-3 rounded-lg border border-border bg-card py-14">
+        <div className="mt-8 flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border bg-card py-14">
           <ShoppingCart className="h-10 w-10 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">Your cart is empty.</p>
-          <Link
-            to="/deals"
-            className="rounded-md bg-gold px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-gold-deep"
-          >
+          <Link to="/deals" className="rounded-full bg-gold px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-gold-deep">
             Browse deals
           </Link>
         </div>
       ) : (
-        <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_320px]">
+        <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
           <ul className="flex flex-col gap-3">
             {cartItems.map(({ product, qty }) => (
-              <li
-                key={product.id}
-                className="flex gap-3 rounded-lg border border-border bg-card p-3"
-              >
+              <li key={product.id} className="flex gap-3 rounded-2xl border border-border bg-card p-3 shadow-sm sm:p-4">
                 <Link to="/product/$slug" params={{ slug: product.slug }} className="shrink-0">
-                  <img
-                    src={product.image}
-                    alt={product.name}
-                    loading="lazy"
-                    width={512}
-                    height={512}
-                    className="h-24 w-24 rounded-md object-contain"
-                  />
+                  <img src={product.image} alt={product.name} loading="lazy" width={512} height={512} className="h-24 w-24 rounded-xl border border-border bg-background object-contain sm:h-28 sm:w-28" />
                 </Link>
-                <div className="flex flex-1 flex-col">
-                  <p className="text-xs text-muted-foreground">{product.brand}</p>
-                  <Link
-                    to="/product/$slug"
-                    params={{ slug: product.slug }}
-                    className="text-sm font-semibold text-foreground hover:text-gold"
-                  >
+                <div className="flex min-w-0 flex-1 flex-col">
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{product.brand}</p>
+                  <Link to="/product/$slug" params={{ slug: product.slug }} className="mt-1 text-sm font-bold text-foreground hover:text-gold sm:text-base">
                     {product.name}
                   </Link>
-                  <p className="mt-1 text-sm font-bold text-foreground">{formatTk(product.price)}</p>
+                  <p className="mt-2 text-sm font-bold text-gold">{formatTk(product.price)}</p>
 
-                  <div className="mt-auto flex items-center gap-3">
-                    <div className="flex items-center rounded-md border border-border">
-                      <button
-                        type="button"
-                        aria-label="Decrease quantity"
-                        onClick={() => setQty(product.slug, qty - 1)}
-                        className="px-2 py-1.5 hover:text-gold"
-                      >
+                  <div className="mt-auto flex flex-wrap items-center gap-3 pt-3">
+                    <div className="flex items-center rounded-full border border-border bg-background">
+                      <button type="button" aria-label="Decrease quantity" onClick={() => setQty(product.slug, qty - 1)} className="px-2.5 py-1.5 text-foreground hover:text-gold">
                         <Minus className="h-3.5 w-3.5" />
                       </button>
-                      <span className="min-w-8 text-center text-sm font-medium">{qty}</span>
-                      <button
-                        type="button"
-                        aria-label="Increase quantity"
-                        onClick={() => setQty(product.slug, qty + 1)}
-                        className="px-2 py-1.5 hover:text-gold"
-                      >
+                      <span className="min-w-8 text-center text-sm font-semibold">{qty}</span>
+                      <button type="button" aria-label="Increase quantity" onClick={() => setQty(product.slug, qty + 1)} className="px-2.5 py-1.5 text-foreground hover:text-gold">
                         <Plus className="h-3.5 w-3.5" />
                       </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        removeFromCart(product.slug);
-                        toast.success("Removed from cart");
-                      }}
-                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-sale"
-                    >
+                    <button type="button" onClick={() => { removeFromCart(product.slug); toast.success("Removed from cart"); }} className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-sale">
                       <Trash2 className="h-3.5 w-3.5" /> Remove
                     </button>
                   </div>
                 </div>
-                <p className="text-sm font-bold text-foreground">{formatTk(product.price * qty)}</p>
+                <p className="text-sm font-black text-foreground sm:text-base">{formatTk(product.price * qty)}</p>
               </li>
             ))}
           </ul>
 
-          <aside className="h-fit rounded-lg border border-border bg-card p-4">
-            <h2 className="text-base font-bold text-foreground">Order Summary</h2>
-            <dl className="mt-3 space-y-2 text-sm">
+          <aside className="h-fit rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
+            <h2 className="text-lg font-bold text-foreground">Order Summary</h2>
+            <dl className="mt-4 space-y-2.5 text-sm">
               <div className="flex justify-between">
                 <dt className="text-muted-foreground">Subtotal</dt>
                 <dd className="font-medium">{formatTk(cartTotal)}</dd>
@@ -127,27 +101,15 @@ function CartPage() {
                 <dt className="text-muted-foreground">Delivery</dt>
                 <dd className="font-medium">{delivery === 0 ? "Free" : formatTk(delivery)}</dd>
               </div>
-              <div className="flex justify-between border-t border-border pt-2 text-base font-bold">
+              <div className="flex justify-between border-t border-border pt-2.5 text-base font-black">
                 <dt>Total</dt>
                 <dd>{formatTk(cartTotal + delivery)}</dd>
               </div>
             </dl>
-            <button
-              type="button"
-              onClick={() => {
-                if (!user) {
-                  navigate({ to: "/login", search: { returnTo: "/checkout" } });
-                  return;
-                }
-                navigate({ to: "/checkout", search: { slug: cartItems[0]?.product.slug ?? undefined } });
-              }}
-              className="mt-4 w-full rounded-md bg-gold px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-gold-deep"
-            >
+            <button type="button" onClick={() => { if (!user) { navigate({ to: "/login", search: { returnTo: "/checkout" } }); return; } navigate({ to: "/checkout", search: { slug: cartItems[0]?.product.slug ?? undefined } }); }} className="mt-5 w-full rounded-full bg-gold px-4 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-gold-deep">
               {user ? "Proceed to Checkout" : "Login to Proceed"} · {formatTk(cartTotal + delivery)}
             </button>
-            <p className="mt-2 text-center text-xs text-muted-foreground">
-              Checkout calculates the final payable amount on the server.
-            </p>
+            <p className="mt-2 text-center text-xs text-muted-foreground">Checkout calculates the final payable amount on the server.</p>
           </aside>
         </div>
       )}

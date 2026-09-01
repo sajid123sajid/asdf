@@ -78,18 +78,13 @@ export function ProductCard({
 
 
 
-        <div
-          className="block aspect-square p-2 sm:p-3"
-          style={{ contentVisibility: "auto", contain: "layout paint size" }}
-        >
+        <div className="block aspect-square p-2 sm:p-3">
           <img
             src={product.image}
             alt={`${product.brand} ${product.name}`}
             loading="lazy"
-            decoding="async"
             width={512}
             height={512}
-            sizes="(max-width: 640px) 46vw, (max-width: 1024px) 31vw, 23vw"
             className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-105"
           />
         </div>

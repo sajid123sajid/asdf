@@ -10,7 +10,7 @@ import {
   registerUser,
   verifyPassword,
 } from "../src/db.ts";
-import { configuredRoleFor, sanitizeAppReturnTo } from "../src/auth.ts";
+import { configuredRoleFor, getGoogleConfig, sanitizeAppReturnTo } from "../src/auth.ts";
 
 test("passwords are stored as verifiable non-plaintext hashes", async () => {
   const password = "auth-core-password";
@@ -66,6 +66,49 @@ test("admin emails from runtime config map to the owner role", async () => {
       delete (globalThis as Record<string, unknown>).__CLOUDFLARE_ENV__;
     } else {
       (globalThis as Record<string, unknown>).__CLOUDFLARE_ENV__ = previousEnv;
+    }
+  }
+});
+
+test("Google OAuth config resolves from runtime and local env values", () => {
+  const previousEnv = (globalThis as Record<string, unknown>).__CLOUDFLARE_ENV__;
+  const previousClientId = process.env.GOOGLE_CLIENT_ID;
+  const previousClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const previousPublicSiteUrl = process.env.PUBLIC_SITE_URL;
+
+  delete (globalThis as Record<string, unknown>).__CLOUDFLARE_ENV__;
+  process.env.GOOGLE_CLIENT_ID = "local-google-client-id";
+  process.env.GOOGLE_CLIENT_SECRET = "local-google-client-secret";
+  process.env.PUBLIC_SITE_URL = "https://example.com";
+
+  try {
+    const config = getGoogleConfig();
+    assert.equal(config.clientId, "local-google-client-id");
+    assert.equal(config.clientSecret, "local-google-client-secret");
+    assert.equal(config.redirectUri, "https://example.com/google-callback");
+  } finally {
+    if (previousEnv === undefined) {
+      delete (globalThis as Record<string, unknown>).__CLOUDFLARE_ENV__;
+    } else {
+      (globalThis as Record<string, unknown>).__CLOUDFLARE_ENV__ = previousEnv;
+    }
+
+    if (previousClientId === undefined) {
+      delete process.env.GOOGLE_CLIENT_ID;
+    } else {
+      process.env.GOOGLE_CLIENT_ID = previousClientId;
+    }
+
+    if (previousClientSecret === undefined) {
+      delete process.env.GOOGLE_CLIENT_SECRET;
+    } else {
+      process.env.GOOGLE_CLIENT_SECRET = previousClientSecret;
+    }
+
+    if (previousPublicSiteUrl === undefined) {
+      delete process.env.PUBLIC_SITE_URL;
+    } else {
+      process.env.PUBLIC_SITE_URL = previousPublicSiteUrl;
     }
   }
 });

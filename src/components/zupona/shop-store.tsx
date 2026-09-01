@@ -10,8 +10,7 @@ import {
 } from "./data";
 import { toast } from "sonner";
 import { getPublicCatalog } from "@/admin-api";
-
-type CartLine = { slug: string; qty: number };
+import { normalizeCartLines, type CartLine } from "@/lib/cart-utils";
 
 export type ShopState = {
   // Products Management
@@ -65,61 +64,54 @@ function read<T>(key: string, fallback: T): T {
 export function ShopProvider({ children }: { children: ReactNode }) {
   const [productsList, setProductsList] = useState<Product[]>(initialProducts);
   const [detailsMap, setDetailsMap] = useState<Record<string, Partial<ProductDetail>>>(initialDetailsBySlug);
-  const [cart, setCart] = useState<CartLine[]>([]);
+  const [cart, setCart] = useState<CartLine[]>(() => normalizeCartLines(read<CartLine[]>(CART_KEY, []), new Set(initialProducts.map((p) => p.slug))));
   const [wishlist, setWishlist] = useState<string[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
 
+  const validProductSlugs = useMemo(() => new Set(productsList.map((product) => product.slug)), [productsList]);
+
   useEffect(() => {
-    setCart(read<CartLine[]>(CART_KEY, []));
+    const storedCart = read<CartLine[]>(CART_KEY, []);
+    const safeCart = normalizeCartLines(storedCart, validProductSlugs);
+    setCart((previousCart) => {
+      const currentCart = previousCart.length === 0 ? storedCart : previousCart;
+      const nextCart = normalizeCartLines(currentCart, validProductSlugs);
+      if (JSON.stringify(nextCart) !== JSON.stringify(safeCart)) {
+        return safeCart;
+      }
+      return nextCart;
+    });
     setWishlist(read<string[]>(WISH_KEY, []));
     setHydrated(true);
-  }, []);
+  }, [validProductSlugs]);
 
   // The public storefront always prefers the shared D1 catalog. Local storage is only an offline/demo fallback.
   useEffect(() => {
     let active = true;
-    const loadCatalogAfterIdle = () => {
-      const schedule = (globalThis as typeof globalThis & { requestIdleCallback?: (callback: () => void) => number }).requestIdleCallback;
-      if (schedule) {
-        schedule(() => {
-          void getPublicCatalog()
-            .then(({ catalog }) => {
-              if (!active || catalog.length === 0) return;
-              setProductsList(catalog.map((item) => item.product));
-              setDetailsMap(Object.fromEntries(catalog.map((item) => [item.product.slug, item.detail])));
-            })
-            .catch(() => {
-              // Keep the bundled catalog available when running without local Worker bindings.
-            });
-        });
-        return;
-      }
-
-      window.setTimeout(() => {
-        void getPublicCatalog()
-          .then(({ catalog }) => {
-            if (!active || catalog.length === 0) return;
-            setProductsList(catalog.map((item) => item.product));
-            setDetailsMap(Object.fromEntries(catalog.map((item) => [item.product.slug, item.detail])));
-          })
-          .catch(() => {
-            // Keep the bundled catalog available when running without local Worker bindings.
-          });
-      }, 50);
-    };
-
-    loadCatalogAfterIdle();
+    void getPublicCatalog()
+      .then(({ catalog }) => {
+        if (!active || catalog.length === 0) return;
+        setProductsList(catalog.map((item) => item.product));
+        setDetailsMap(Object.fromEntries(catalog.map((item) => [item.product.slug, item.detail])));
+      })
+      .catch(() => {
+        // Keep the bundled catalog available when running without local Worker bindings.
+      });
     return () => {
       active = false;
     };
   }, []);
 
   useEffect(() => {
-    if (hydrated) {
-      localStorage.setItem(CART_KEY, JSON.stringify(cart));
+    if (!hydrated) return;
+    const nextCart = normalizeCartLines(cart, validProductSlugs);
+    if (JSON.stringify(nextCart) !== JSON.stringify(cart)) {
+      setCart(nextCart);
+      return;
     }
-  }, [cart, hydrated]);
+    localStorage.setItem(CART_KEY, JSON.stringify(nextCart));
+  }, [cart, hydrated, validProductSlugs]);
 
   useEffect(() => {
     if (hydrated) {

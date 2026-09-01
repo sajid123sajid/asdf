@@ -27,6 +27,11 @@ export const categories: Category[] = [
   { slug: "baby-accessories", name: "Baby Accessories", image: catBaby },
   { slug: "toys", name: "Toys", image: catToys },
   { slug: "home-living", name: "Home & Living", image: catHome },
+  { slug: "electronics", name: "Electronics", image: catMensAcc },
+  { slug: "beauty-personal-care", name: "Beauty & Personal Care", image: catBeauty },
+  { slug: "sports-fitness", name: "Sports & Fitness", image: catBath },
+  { slug: "groceries", name: "Groceries", image: catHome },
+  { slug: "automotive", name: "Automotive", image: catWomensAcc },
 ];
 
 export type Product = {

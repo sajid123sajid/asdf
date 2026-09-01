@@ -1,6 +1,6 @@
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
-import { Minus, Plus, RotateCcw, ShieldCheck, Truck, PackageCheck, ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ChevronRight, Lock, Minus, PackageCheck, Plus, ShieldCheck, Trash2, Truck } from "lucide-react";
 import { toast } from "sonner";
 import { formatTk, getProduct } from "@/components/zupona/data";
 import { useShop } from "@/components/zupona/shop-store";
@@ -43,17 +43,16 @@ export const Route = createFileRoute("/checkout")({
 });
 
 function CheckoutPage() {
+  const navigate = useNavigate();
   const { slug } = Route.useSearch();
   const { user } = Route.useLoaderData();
   const { cartItems: cartCheckoutItems, setQty: setCartQty, removeFromCart } = useShop();
   const product = slug ? getProduct(slug) : undefined;
   const fallbackProductEntry = product ? [{ product, qty: 1 }] : [];
   const selectedItems = cartCheckoutItems.length > 0 ? cartCheckoutItems : fallbackProductEntry;
-  const [qty, setQty] = useState(1);
   const [placedOrder, setPlacedOrder] = useState<OrderRecord | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Form Fields
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [deliveryAddress, setDeliveryAddress] = useState("");
@@ -72,22 +71,26 @@ function CheckoutPage() {
 
   if (selectedItems.length === 0) {
     return (
-      <main className="mx-auto max-w-[1200px] px-4 py-10">
-        <h1 className="text-2xl font-bold text-foreground">Checkout</h1>
-        <p className="mt-2 text-sm text-muted-foreground">No product selected.</p>
-        <Link
-          to="/"
-          className="mt-4 inline-block rounded-md bg-gold px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-gold-deep"
-        >
-          Continue shopping
-        </Link>
+      <main className="mx-auto max-w-[640px] px-4 py-10 sm:py-16">
+        <div className="rounded-[28px] border border-border bg-card p-6 text-center shadow-sm sm:p-8">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">Checkout</p>
+          <h1 className="mt-3 text-3xl font-black text-foreground">Your cart is empty</h1>
+          <p className="mt-3 text-sm text-muted-foreground">Add products to continue to secure payment.</p>
+          <Link
+            to="/"
+            className="mt-6 inline-flex items-center justify-center rounded-full bg-gold px-5 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-gold-deep"
+          >
+            Continue shopping
+          </Link>
+        </div>
       </main>
     );
   }
 
   const subtotal = selectedItems.reduce((sum, { product, qty: itemQty }) => sum + product.price * itemQty, 0);
   const delivery = subtotal >= 999 ? 0 : 60;
-  const totalAmount = subtotal + delivery;
+  const discount = 0;
+  const totalAmount = subtotal + delivery - discount;
 
   const handleOrderSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -124,7 +127,7 @@ function CheckoutPage() {
   if (placedOrder) {
     return (
       <main className="mx-auto max-w-[650px] px-4 py-12 text-center">
-        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8">
+        <div className="rounded-[28px] border border-border bg-card p-6 shadow-sm sm:p-8">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
             <PackageCheck className="h-8 w-8" />
           </div>
@@ -133,22 +136,21 @@ function CheckoutPage() {
             Order Number: <span className="font-mono text-gold font-bold">{placedOrder.id}</span>
           </p>
           <p className="mt-2 text-xs text-muted-foreground sm:text-sm">
-            Thank you for shopping with Zupona! We have saved your order and our representative will
-            call you shortly to confirm delivery.
+            Thank you for shopping with Zupona! We have saved your order and our representative will call you shortly to confirm delivery.
           </p>
 
-          <div className="mt-6 rounded-xl border border-border bg-background p-4 text-left text-xs sm:text-sm">
-            <div className="flex justify-between py-1 border-b border-border pb-2">
+          <div className="mt-6 rounded-2xl border border-border bg-background p-4 text-left text-xs sm:text-sm">
+            <div className="flex justify-between gap-3 border-b border-border pb-2">
               <span className="text-muted-foreground">Items:</span>
-              <span className="font-semibold text-foreground">
+              <span className="text-right font-semibold text-foreground">
                 {selectedItems.map(({ product: itemProduct, qty: itemQty }) => `${itemQty} × ${itemProduct.name}`).join(", ")}
               </span>
             </div>
-            <div className="flex justify-between py-1 border-b border-border pb-2 pt-2">
+            <div className="flex justify-between gap-3 border-b border-border py-2">
               <span className="text-muted-foreground">Delivery To:</span>
-              <span className="font-semibold text-foreground">{placedOrder.shipping_address}</span>
+              <span className="max-w-[220px] text-right font-semibold text-foreground">{placedOrder.shipping_address}</span>
             </div>
-            <div className="flex justify-between py-1 pt-2 text-sm font-bold">
+            <div className="flex justify-between gap-3 pt-2 text-sm font-bold">
               <span>Total Payable (COD):</span>
               <span className="text-gold">{formatTk(placedOrder.total_amount)}</span>
             </div>
@@ -158,13 +160,13 @@ function CheckoutPage() {
             <Link
               to="/track-order"
               search={{ id: placedOrder.id }}
-              className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-gold px-5 py-2.5 text-xs font-semibold text-primary-foreground hover:bg-gold-deep transition-colors"
+              className="inline-flex items-center justify-center gap-1.5 rounded-full bg-gold px-5 py-2.5 text-xs font-semibold text-primary-foreground hover:bg-gold-deep transition-colors"
             >
               Track Order <ArrowRight className="h-3.5 w-3.5" />
             </Link>
             <Link
               to="/account"
-              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-background px-5 py-2.5 text-xs font-semibold text-foreground hover:bg-secondary transition-colors"
+              className="inline-flex items-center justify-center gap-1.5 rounded-full border border-border bg-background px-5 py-2.5 text-xs font-semibold text-foreground hover:bg-secondary transition-colors"
             >
               Go to Account
             </Link>
@@ -174,189 +176,265 @@ function CheckoutPage() {
     );
   }
 
-  return (
-    <main className="mx-auto max-w-[1200px] px-4 py-6">
-      <h1 className="text-xl font-bold text-foreground sm:text-2xl">Checkout</h1>
+  const deliveryLabel = delivery === 0 ? "Free delivery" : `${formatTk(delivery)} delivery`;
+  const stepClass = "flex items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-xs font-semibold";
 
-      <div className="mt-4 grid gap-5 lg:grid-cols-[1fr_340px]">
-        <section className="rounded-xl border border-border bg-card p-4 sm:p-6 shadow-sm">
-          {selectedItems.map(({ product: itemProduct, qty: itemQty }) => (
-            <div key={itemProduct.slug} className="flex gap-3">
-              <Link to="/product/$slug" params={{ slug: itemProduct.slug }} className="shrink-0">
-                <img
-                  src={itemProduct.image}
-                  alt={`${itemProduct.brand} ${itemProduct.name}`}
-                  width={512}
-                  height={512}
-                  className="h-24 w-24 rounded-md object-contain border border-border bg-background"
-                />
-              </Link>
-              <div className="flex flex-1 flex-col">
-                <p className="text-xs text-muted-foreground">{itemProduct.brand}</p>
-                <p className="text-sm font-semibold text-foreground">{itemProduct.name}</p>
-                <p className="mt-1 text-sm font-bold text-gold">{formatTk(itemProduct.price)}</p>
-                <div className="mt-auto flex items-center rounded-md border border-border self-start">
-                  <button
-                    type="button"
-                    aria-label={`Decrease quantity for ${itemProduct.name}`}
-                    onClick={() => {
-                      if (cartCheckoutItems.length > 0) {
-                        setCartQty(itemProduct.slug, Math.max(0, itemQty - 1));
-                        if (itemQty <= 1) removeFromCart(itemProduct.slug);
-                      } else {
-                        setQty((q) => Math.max(1, q - 1));
-                      }
-                    }}
-                    className="px-2 py-1.5 hover:text-gold"
-                  >
-                    <Minus className="h-3.5 w-3.5" />
-                  </button>
-                  <span className="min-w-8 text-center text-sm font-medium">{itemQty}</span>
-                  <button
-                    type="button"
-                    aria-label={`Increase quantity for ${itemProduct.name}`}
-                    onClick={() => {
-                      if (cartCheckoutItems.length > 0) {
-                        setCartQty(itemProduct.slug, itemQty + 1);
-                      } else {
-                        setQty((q) => q + 1);
-                      }
-                    }}
-                    className="px-2 py-1.5 hover:text-gold"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                  </button>
+  return (
+    <main className="mx-auto max-w-[1200px] px-3 py-4 sm:px-4 sm:py-6">
+      <header className="mb-5 rounded-[28px] border border-border bg-card px-4 py-3 shadow-sm sm:px-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => navigate({ to: "/cart" })}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background text-foreground transition-colors hover:bg-secondary"
+              aria-label="Go back to cart"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <Link to="/" className="flex items-center gap-2" aria-label="Zupona home">
+              <img src="/favicon.png" alt="Zupona" width={320} height={120} className="h-8 w-auto object-contain" />
+            </Link>
+          </div>
+          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
+            <Lock className="h-3.5 w-3.5" />
+            Secure Checkout
+          </div>
+        </div>
+      </header>
+
+      <div className="mb-5">
+        <h1 className="text-2xl font-black text-foreground sm:text-3xl">Checkout</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Review your order and complete your purchase</p>
+      </div>
+
+      <div className="mb-6 flex flex-wrap items-center gap-2 text-xs font-medium text-muted-foreground sm:text-sm">
+        {["Cart", "Address", "Payment", "Confirm"].map((label, index) => {
+          const isActive = index === 1;
+          const isComplete = index < 1;
+          return (
+            <div key={label} className="flex items-center gap-2">
+              <div className={`${stepClass} ${isActive ? "border-gold/60 bg-[#fff9ee] text-gold" : ""} ${isComplete ? "border-emerald-200 bg-emerald-50 text-emerald-700" : ""}`}>
+                <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold ${isActive ? "bg-gold text-primary-foreground" : isComplete ? "bg-emerald-600 text-white" : "bg-secondary text-foreground"}`}>
+                  {isComplete ? <Check className="h-3.5 w-3.5" /> : index + 1}
+                </span>
+                {label}
+              </div>
+              {index < 3 && <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+            </div>
+          );
+        })}
+      </div>
+
+      <form id="checkout-form" onSubmit={handleOrderSubmit} className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <section className="space-y-5">
+          <div className="rounded-[28px] border border-border bg-card p-4 shadow-sm sm:p-5">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Delivery address</p>
+                <h2 className="mt-1 text-lg font-bold text-foreground">Shipping details</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate({ to: "/account" })}
+                className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-secondary"
+              >
+                Change
+              </button>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-background p-4">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
+                  <Truck className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-foreground">{fullName || user?.name || "Your delivery address"}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{deliveryAddress || "Add your delivery address to continue."}</p>
+                  <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                    <span>{phone || user?.phone || "Phone not set"}</span>
+                    {shippingPostcode ? <span>• {shippingPostcode}</span> : null}
+                  </div>
                 </div>
               </div>
             </div>
-          ))}
+          </div>
 
-          <form
-            className="mt-6 grid gap-3.5 border-t border-border pt-6 sm:grid-cols-2"
-            onSubmit={handleOrderSubmit}
-          >
-            <h2 className="text-base font-bold text-foreground sm:col-span-2">
-              Delivery Information
-            </h2>
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">
-                Full Name *
-              </label>
-              <input
-                required
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="e.g. Sajid Ahmed"
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-gold"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">
-                Phone Number *
-              </label>
-              <input
-                required
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="e.g. 01700000000"
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-gold"
-              />
-            </div>
-            {!user && (
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-medium text-muted-foreground mb-1">
-                  Email (Optional for tracking)
-                </label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="your@email.com"
-                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-gold"
-                />
+          <div className="rounded-[28px] border border-border bg-card p-4 shadow-sm sm:p-5">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Order items</p>
+                <h2 className="mt-1 text-lg font-bold text-foreground">Your cart</h2>
               </div>
-            )}
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-medium text-muted-foreground mb-1">
-                Full Delivery Address *
-              </label>
-              <textarea
-                required
-                value={deliveryAddress}
-                onChange={(e) => setDeliveryAddress(e.target.value)}
-                placeholder="House #, Road #, Area, Police Station, District"
-                rows={3}
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-gold"
-              />
+              <span className="rounded-full bg-secondary px-2.5 py-1 text-[11px] font-semibold text-foreground">{selectedItems.reduce((sum, item) => sum + item.qty, 0)} items</span>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">
-                Postal / ZIP Code *
-              </label>
-              <input
-                required
-                inputMode="numeric"
-                pattern="[0-9]{4}"
-                maxLength={4}
-                value={shippingPostcode}
-                onChange={(e) => setShippingPostcode(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                placeholder="e.g. 1212"
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-gold"
-              />
+
+            <div className="space-y-3">
+              {selectedItems.map(({ product: itemProduct, qty: itemQty }) => (
+                <div key={itemProduct.slug} className="flex gap-3 rounded-2xl border border-border bg-background p-3">
+                  <Link to="/product/$slug" params={{ slug: itemProduct.slug }} className="block shrink-0 overflow-hidden rounded-xl border border-border bg-secondary">
+                    <div className="relative aspect-[4/5] h-24 w-24 sm:h-28 sm:w-28">
+                      <img src={itemProduct.image} alt={`${itemProduct.brand} ${itemProduct.name}`} className="h-full w-full object-cover" />
+                    </div>
+                  </Link>
+
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{itemProduct.brand}</p>
+                        <p className="mt-1 text-sm font-bold text-foreground">{itemProduct.name}</p>
+                      </div>
+                      <button
+                        type="button"
+                        aria-label={`Remove ${itemProduct.name} from cart`}
+                        onClick={() => removeFromCart(itemProduct.slug)}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition-colors hover:text-destructive"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+
+                    <div className="mt-3 flex items-center justify-between gap-3">
+                      <div className="inline-flex items-center rounded-full border border-border bg-card">
+                        <button type="button" aria-label={`Decrease quantity for ${itemProduct.name}`} onClick={() => {
+                          if (itemQty <= 1) removeFromCart(itemProduct.slug);
+                          else setCartQty(itemProduct.slug, itemQty - 1);
+                        }} className="flex h-9 w-9 items-center justify-center text-foreground hover:text-gold">
+                          <Minus className="h-3.5 w-3.5" />
+                        </button>
+                        <span className="min-w-8 text-center text-sm font-semibold">{itemQty}</span>
+                        <button type="button" aria-label={`Increase quantity for ${itemProduct.name}`} onClick={() => setCartQty(itemProduct.slug, itemQty + 1)} className="flex h-9 w-9 items-center justify-center text-foreground hover:text-gold">
+                          <Plus className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+
+                      <p className="text-base font-black text-gold">{formatTk(itemProduct.price * itemQty)}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
-            <fieldset className="sm:col-span-2">
-              <legend className="mb-2 block text-xs font-medium text-muted-foreground">Payment Method</legend>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <label className="flex cursor-pointer items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground">
-                  <input type="radio" name="paymentMethod" value="COD" checked={paymentMethod === "COD"} onChange={() => setPaymentMethod("COD")} />
-                  Cash on Delivery
+
+            <div className="mt-6 border-t border-border pt-5">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Delivery info</p>
+                  <h3 className="mt-1 text-lg font-bold text-foreground">Shipping & timing</h3>
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl border border-border bg-background p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Delivery charge</p>
+                  <p className="mt-2 text-lg font-black text-foreground">{delivery === 0 ? "Free" : formatTk(delivery)}</p>
+                </div>
+                <div className="rounded-2xl border border-border bg-background p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Estimated delivery</p>
+                  <p className="mt-2 text-lg font-black text-foreground">2-4 days</p>
+                </div>
+              </div>
+
+              {delivery === 0 && (
+                <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Free delivery unlocked for this order
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 border-t border-border pt-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Payment method</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <label className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-3 transition-colors ${paymentMethod === "COD" ? "border-gold bg-[#fff9ee]" : "border-border bg-background"}`}>
+                  <input type="radio" name="paymentMethod" value="COD" checked={paymentMethod === "COD"} onChange={() => setPaymentMethod("COD")} className="h-4 w-4 accent-gold" />
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Cash on Delivery</p>
+                    <p className="text-xs text-muted-foreground">Pay when your order arrives</p>
+                  </div>
                 </label>
-                <label className="flex cursor-pointer items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground">
-                  <input type="radio" name="paymentMethod" value="ONLINE" checked={paymentMethod === "ONLINE"} onChange={() => setPaymentMethod("ONLINE")} />
-                  Online Payment (SSLCOMMERZ)
+
+                <label className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-3 transition-colors ${paymentMethod === "ONLINE" ? "border-gold bg-[#fff9ee]" : "border-border bg-background"}`}>
+                  <input type="radio" name="paymentMethod" value="ONLINE" checked={paymentMethod === "ONLINE"} onChange={() => setPaymentMethod("ONLINE")} className="h-4 w-4 accent-gold" />
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Online Payment</p>
+                    <p className="text-xs text-muted-foreground">SSLCOMMERZ secure checkout</p>
+                  </div>
                 </label>
               </div>
-            </fieldset>
+            </div>
+
+            <div className="mt-6 hidden items-center gap-3 rounded-2xl border border-border bg-background p-3 md:flex">
+              <div className="rounded-full bg-emerald-50 p-2 text-emerald-700">
+                <Lock className="h-4 w-4" />
+              </div>
+              <p className="text-sm text-muted-foreground">Your payment is verified on the server before the order is confirmed.</p>
+            </div>
+          </div>
+        </section>
+
+        <aside className="h-fit lg:sticky lg:top-4">
+          <div className="rounded-[28px] border border-border bg-card p-4 shadow-sm sm:p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Order summary</p>
+            <h2 className="mt-1 text-2xl font-black text-foreground">{formatTk(totalAmount)}</h2>
+
+            <dl className="mt-5 space-y-3 text-sm">
+              <div className="flex justify-between gap-3">
+                <dt className="text-muted-foreground">Subtotal</dt>
+                <dd className="font-semibold text-foreground">{formatTk(subtotal)}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-muted-foreground">Delivery</dt>
+                <dd className="font-semibold text-foreground">{delivery === 0 ? "Free" : formatTk(delivery)}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-muted-foreground">Discount</dt>
+                <dd className="font-semibold text-foreground">{formatTk(discount)}</dd>
+              </div>
+              <div className="flex justify-between gap-3 border-t border-border pt-3 text-base font-black text-foreground">
+                <dt>Total payable</dt>
+                <dd className="text-gold">{formatTk(totalAmount)}</dd>
+              </div>
+            </dl>
+
+            <div className="mt-5 rounded-2xl border border-border bg-background p-3 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2 font-medium text-foreground">
+                <ShieldCheck className="h-4 w-4 text-gold" />
+                {deliveryLabel}
+              </div>
+              <p className="mt-2">Fast delivery across Bangladesh. Simple, secure checkout with trusted payment options.</p>
+            </div>
+
             <button
               type="submit"
               disabled={submitting}
-              className="mt-2 rounded-lg bg-gold px-4 py-3 text-sm font-semibold text-primary-foreground hover:bg-gold-deep transition-colors sm:col-span-2 disabled:opacity-50"
+              className="mt-5 hidden w-full rounded-full bg-gold px-4 py-3.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-gold-deep disabled:opacity-60 md:inline-flex md:items-center md:justify-center md:gap-2"
             >
-              {submitting ? "Processing..." : paymentMethod === "ONLINE" ? `Pay ${formatTk(totalAmount)} Online` : `Confirm Order — ${formatTk(totalAmount)} (Cash on Delivery)`}
+              {submitting ? "Processing..." : "Proceed to Payment"}
+              <ArrowRight className="h-4 w-4" />
             </button>
-          </form>
-        </section>
-
-        <aside className="h-fit rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
-          <h2 className="text-base font-bold text-foreground">Order Summary</h2>
-          <dl className="mt-3 space-y-2.5 text-sm">
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Subtotal</dt>
-              <dd className="font-medium">{formatTk(subtotal)}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Delivery Charge</dt>
-              <dd className="font-medium">{delivery === 0 ? "Free" : formatTk(delivery)}</dd>
-            </div>
-            <div className="flex justify-between border-t border-border pt-2.5 text-base font-bold">
-              <dt>Total</dt>
-              <dd className="text-gold">{formatTk(totalAmount)}</dd>
-            </div>
-          </dl>
-          <ul className="mt-4 space-y-2 border-t border-border pt-4 text-xs text-muted-foreground">
-            <li className="flex items-center gap-2">
-              <Truck className="h-4 w-4 text-gold" strokeWidth={1.5} /> Free delivery over Tk 999
-            </li>
-            <li className="flex items-center gap-2">
-              <RotateCcw className="h-4 w-4 text-gold" strokeWidth={1.5} /> 30-day returns
-            </li>
-            <li className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-gold" strokeWidth={1.5} /> Cash on delivery available
-            </li>
-          </ul>
+          </div>
         </aside>
+      </form>
+
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 px-3 py-3 shadow-[0_-8px_32px_rgba(17,24,39,0.12)] backdrop-blur-sm md:hidden">
+        <div className="mx-auto flex max-w-[1200px] items-center justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Total</p>
+            <p className="text-lg font-black text-foreground">{formatTk(totalAmount)}</p>
+          </div>
+          <button
+            type="submit"
+            form="checkout-form"
+            disabled={submitting}
+            className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-gold px-4 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-gold-deep disabled:opacity-60"
+          >
+            {submitting ? "Processing..." : "Proceed to Payment"}
+            <ArrowRight className="h-4 w-4" />
+          </button>
+        </div>
       </div>
+
+      <div className="pointer-events-none h-24 md:hidden" />
     </main>
   );
 }

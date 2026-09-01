@@ -117,23 +117,20 @@ function AccountPage() {
   };
 
   return (
-    <main className="mx-auto max-w-[1200px] px-3 pb-12 pt-3 md:px-4 md:pt-6">
+    <main className="mx-auto max-w-[1200px] px-3 pb-12 pt-4 md:px-4 md:pt-6">
       {user ? (
-        /* ================= Logged In State ================= */
         <div className="space-y-6">
-          {/* User Header Profile Card */}
-          <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-sm md:p-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative overflow-hidden rounded-3xl border border-border bg-card p-5 shadow-sm md:p-6">
+            <div className="absolute inset-y-0 right-0 hidden w-44 bg-gradient-to-l from-gold/8 to-transparent md:block" />
+            <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-4">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gold/15 text-xl font-bold text-gold ring-4 ring-gold/10">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gold/14 text-xl font-bold text-gold ring-4 ring-gold/10">
                   {(user.name || user.email).charAt(0).toUpperCase()}
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h1 className="text-lg font-bold text-foreground sm:text-xl">
-                      {user.name || user.email.split("@")[0]}
-                    </h1>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                    <h1 className="text-lg font-bold text-foreground sm:text-2xl">{user.name || user.email.split("@")[0]}</h1>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
                       <ShieldCheck className="h-3 w-3" /> Verified
                     </span>
                   </div>
@@ -142,64 +139,37 @@ function AccountPage() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTab("profile");
-                    setIsEditingProfile(true);
-                  }}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3.5 py-2 text-xs font-semibold text-foreground hover:bg-secondary transition-colors"
-                >
+                <button type="button" onClick={() => { setActiveTab("profile"); setIsEditingProfile(true); }} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3.5 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-secondary">
                   <Edit2 className="h-3.5 w-3.5" /> Edit Profile
                 </button>
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-destructive/30 bg-destructive/10 px-3.5 py-2 text-xs font-semibold text-destructive hover:bg-destructive/20 transition-colors"
-                >
+                <button type="button" onClick={handleLogout} className="inline-flex items-center gap-1.5 rounded-full border border-destructive/30 bg-destructive/10 px-3.5 py-2 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/20">
                   <LogOut className="h-3.5 w-3.5" /> Sign Out
                 </button>
               </div>
             </div>
 
-            {/* Quick Stats Banner */}
-            <div className="mt-5 grid grid-cols-3 gap-3 border-t border-border pt-4 text-center">
-              <div className="rounded-lg bg-background p-2.5">
-                <p className="text-xs text-muted-foreground">Orders</p>
-                <p className="text-base font-bold text-foreground">{orders.length}</p>
+            <div className="relative mt-5 grid grid-cols-3 gap-3 border-t border-border pt-4 text-center">
+              <div className="rounded-2xl bg-background p-3">
+                <p className="text-[11px] text-muted-foreground">Orders</p>
+                <p className="mt-1 text-xl font-black text-foreground">{orders.length}</p>
               </div>
-              <Link to="/wishlist" className="rounded-lg bg-background p-2.5 hover:bg-secondary transition-colors">
-                <p className="text-xs text-muted-foreground">Wishlist</p>
-                <p className="text-base font-bold text-gold">{wishlist.length}</p>
+              <Link to="/wishlist" className="rounded-2xl bg-background p-3 transition-colors hover:bg-secondary">
+                <p className="text-[11px] text-muted-foreground">Wishlist</p>
+                <p className="mt-1 text-xl font-black text-gold">{wishlist.length}</p>
               </Link>
-              <Link to="/cart" className="rounded-lg bg-background p-2.5 hover:bg-secondary transition-colors">
-                <p className="text-xs text-muted-foreground">Cart Items</p>
-                <p className="text-base font-bold text-foreground">{cartCount}</p>
+              <Link to="/cart" className="rounded-2xl bg-background p-3 transition-colors hover:bg-secondary">
+                <p className="text-[11px] text-muted-foreground">Cart</p>
+                <p className="mt-1 text-xl font-black text-foreground">{cartCount}</p>
               </Link>
             </div>
           </div>
 
-          {/* Navigation Tabs */}
-          <div className="flex border-b border-border text-sm font-semibold">
-            <button
-              onClick={() => setActiveTab("orders")}
-              className={`flex items-center gap-2 border-b-2 px-4 py-2.5 transition-colors ${
-                activeTab === "orders"
-                  ? "border-gold text-gold"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <Package className="h-4 w-4" /> My Orders ({orders.length})
+          <div className="flex overflow-x-auto border-b border-border text-sm font-semibold [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <button onClick={() => setActiveTab("orders")} className={`shrink-0 border-b-2 px-4 py-2.5 transition-colors ${activeTab === "orders" ? "border-gold text-gold" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+              <span className="inline-flex items-center gap-2"><Package className="h-4 w-4" /> My Orders ({orders.length})</span>
             </button>
-            <button
-              onClick={() => setActiveTab("profile")}
-              className={`flex items-center gap-2 border-b-2 px-4 py-2.5 transition-colors ${
-                activeTab === "profile"
-                  ? "border-gold text-gold"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <User className="h-4 w-4" /> Profile & Address
+            <button onClick={() => setActiveTab("profile")} className={`shrink-0 border-b-2 px-4 py-2.5 transition-colors ${activeTab === "profile" ? "border-gold text-gold" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+              <span className="inline-flex items-center gap-2"><User className="h-4 w-4" /> Profile & Address</span>
             </button>
           </div>
 

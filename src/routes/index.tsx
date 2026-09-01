@@ -1,12 +1,14 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useLocation } from "@tanstack/react-router";
 import { ArrowRight, ChevronRight } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 import heroCouple from "@/assets/hero-couple.jpg";
 import { BrandStrip } from "@/components/zupona/BrandStrip";
-import { CategoryStrip } from "@/components/zupona/CategoryStrip";
+import { categories } from "@/components/zupona/data";
 import { ProductCard } from "@/components/zupona/ProductCard";
 import { ProductRail } from "@/components/zupona/ProductRail";
 import { useShop } from "@/components/zupona/shop-store";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -32,12 +34,123 @@ export const Route = createFileRoute("/")({
 
 function Index() {
   const { products, bestSelling, topPicks, deals } = useShop();
+  const location = useLocation();
+  const isMobile = useIsMobile();
+  const categorySectionRef = useRef<HTMLElement | null>(null);
+  const [isCategorySticky, setIsCategorySticky] = useState(false);
+  const [stickyOffset, setStickyOffset] = useState(96);
+
+  useEffect(() => {
+    if (!isMobile) {
+      setIsCategorySticky(false);
+      return;
+    }
+
+    const updateCategoryState = () => {
+      const section = categorySectionRef.current;
+      if (!section) return;
+
+      const header = document.querySelector("header");
+      const nextStickyOffset = header ? header.offsetHeight + 6 : 96;
+      setStickyOffset(nextStickyOffset);
+
+      const sectionTop = section.getBoundingClientRect().top + window.scrollY;
+      const shouldStick = window.scrollY > sectionTop - nextStickyOffset;
+      setIsCategorySticky((prev) => (prev === shouldStick ? prev : shouldStick));
+    };
+
+    let raf = 0;
+    const handleScroll = () => {
+      cancelAnimationFrame(raf);
+      raf = window.requestAnimationFrame(updateCategoryState);
+    };
+
+    updateCategoryState();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", handleScroll);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", handleScroll);
+    };
+  }, [isMobile]);
+
+  const featuredCategorySlugs = [
+    "mens-fashion",
+    "womens-fashion",
+    "baby-accessories",
+    "toys",
+    "home-living",
+    "electronics",
+    "beauty-personal-care",
+    "sports-fitness",
+    "groceries",
+    "automotive",
+  ] as const;
+
+  const featuredCategories = featuredCategorySlugs
+    .map((slug) => categories.find((category) => category.slug === slug))
+    .filter((category): category is NonNullable<typeof category> => Boolean(category));
+
+  const renderCategoryItem = (category: (typeof featuredCategories)[number]) => {
+    const isActive = location.pathname === `/category/${category.slug}`;
+
+    return (
+      <Link
+        key={category.slug}
+        to="/category/$slug"
+        params={{ slug: category.slug }}
+        className={`flex items-center justify-center gap-1.5 rounded-xl border px-1 py-2 text-center transition-colors ${
+          isActive ? "border-gold bg-gold/10" : "border-transparent bg-secondary/35 hover:border-gold/40 hover:bg-secondary/60"
+        } ${isMobile && isCategorySticky ? "min-w-[72px] shrink-0" : "flex-col"}`}
+        aria-current={isActive ? "page" : undefined}
+      >
+        <span
+          className={`flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border bg-card ${
+            isActive ? "border-gold" : "border-border/70"
+          } ${isMobile && isCategorySticky ? "h-9 w-9" : "h-12 w-12"}`}
+        >
+          <img
+            src={category.image}
+            alt=""
+            aria-hidden="true"
+            loading="lazy"
+            width={512}
+            height={512}
+            className={`${isMobile && isCategorySticky ? "h-7 w-7" : "h-10 w-10"} object-cover`}
+          />
+        </span>
+        <span className={`${isMobile && isCategorySticky ? "text-[9px]" : "line-clamp-2 text-[9px]"} font-semibold leading-tight text-foreground sm:text-[10px]`}>
+          {category.name}
+        </span>
+      </Link>
+    );
+  };
 
   return (
     <>
       <main className="mx-auto max-w-[1200px] px-3 sm:px-4">
-        {/* Hero */}
-        <section className="relative mt-2 overflow-hidden rounded-xl bg-accent">
+        <section
+          ref={categorySectionRef}
+          aria-labelledby="home-categories"
+          className={`mt-3 rounded-[20px] bg-card px-2 py-2.5 shadow-[0_1px_8px_rgba(0,0,0,0.04)] ${
+            isMobile && isCategorySticky
+              ? "sticky z-40 border border-border/60 bg-card/95 shadow-[0_8px_20px_rgba(0,0,0,0.06)] backdrop-blur-sm"
+              : ""
+          }`}
+          style={isMobile && isCategorySticky ? { top: `${stickyOffset}px` } : undefined}
+        >
+          {isMobile && isCategorySticky ? (
+            <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {featuredCategories.map(renderCategoryItem)}
+            </div>
+          ) : (
+            <div className="grid grid-cols-5 gap-2">{featuredCategories.map(renderCategoryItem)}</div>
+          )}
+        </section>
+
+        <section className="relative mt-3 overflow-hidden rounded-xl bg-accent">
           <img
             src={heroCouple}
             alt="Couple in elegant beige outfits in a warm living room"
@@ -75,10 +188,6 @@ function Index() {
           </div>
         </section>
 
-        <div className="hidden md:block">
-          <CategoryStrip />
-        </div>
-
         <ProductRail
           id="deals-rail"
           title="Deals of the Day"
@@ -86,7 +195,6 @@ function Index() {
           viewAllTo="/deals"
         />
 
-        {/* Best Selling */}
         <section aria-labelledby="best-selling" className="relative mt-4 rounded-2xl bg-card px-2 py-3 sm:mt-8 sm:px-4 sm:py-5">
           <div className="mb-2 flex items-center justify-between sm:mb-4">
             <h2 id="best-selling" className="text-sm font-extrabold text-foreground sm:text-xl">

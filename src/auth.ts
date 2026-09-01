@@ -19,6 +19,7 @@ import {
 } from "./db.ts";
 import { getCatalogBySlug } from "./catalog-db.ts";
 import { getProduct } from "./components/zupona/data.ts";
+import { validateCheckoutOrderInput } from "./lib/checkout.ts";
 import { createSslcommerzPayment } from "./payment.ts";
 import { z } from "zod";
 
@@ -49,7 +50,24 @@ export function sanitizeAppReturnTo(value: string | null | undefined): string | 
 }
 
 function getRuntimeEnv() {
-  return (globalThis as { __CLOUDFLARE_ENV__?: Record<string, unknown> }).__CLOUDFLARE_ENV__ ?? {};
+  const cloudflareEnv = (globalThis as { __CLOUDFLARE_ENV__?: Record<string, unknown> }).__CLOUDFLARE_ENV__ ?? {};
+  const processEnv = typeof process !== "undefined" && process.env ? process.env : {};
+  const viteEnv = typeof import.meta !== "undefined" && import.meta.env ? import.meta.env : {};
+  return {
+    ...viteEnv,
+    ...processEnv,
+    ...cloudflareEnv,
+  } as Record<string, unknown>;
+}
+
+function readRuntimeEnvString(env: Record<string, unknown>, ...keys: string[]) {
+  for (const key of keys) {
+    const value = env[key];
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+  return "";
 }
 
 function getCookieOptions() {
@@ -118,16 +136,19 @@ async function readSessionCookie(name: string): Promise<string | undefined> {
   }
 }
 
-function getGoogleConfig() {
+export function getGoogleConfig() {
   const env = getRuntimeEnv();
 
-  const clientId = typeof env["GOOGLE_CLIENT_ID"] === "string" ? env["GOOGLE_CLIENT_ID"] : "";
-  const clientSecret = typeof env["GOOGLE_CLIENT_SECRET"] === "string" ? env["GOOGLE_CLIENT_SECRET"] : "";
-  const redirectUri = typeof env["GOOGLE_REDIRECT_URI"] === "string"
-    ? env["GOOGLE_REDIRECT_URI"]
-    : "http://localhost:5173/google-callback";
+  const clientId = readRuntimeEnvString(env, "GOOGLE_CLIENT_ID", "VITE_GOOGLE_CLIENT_ID");
+  const clientSecret = readRuntimeEnvString(env, "GOOGLE_CLIENT_SECRET", "VITE_GOOGLE_CLIENT_SECRET");
+  const redirectUri = readRuntimeEnvString(env, "GOOGLE_REDIRECT_URI", "VITE_GOOGLE_REDIRECT_URI");
+  const publicSiteUrl = readRuntimeEnvString(env, "PUBLIC_SITE_URL", "VITE_PUBLIC_SITE_URL");
 
-  return { clientId, clientSecret, redirectUri };
+  return {
+    clientId,
+    clientSecret,
+    redirectUri: redirectUri || (publicSiteUrl ? new URL("/google-callback", publicSiteUrl).toString() : "http://localhost:5173/google-callback"),
+  };
 }
 
 function isGoogleConfigured() {
@@ -313,7 +334,7 @@ export const getGoogleAuthUrl = createServerFn({ method: "GET" })
   .handler(async ({ data }) => {
   const { clientId, redirectUri } = getGoogleConfig();
   if (!clientId) {
-    throw new Error("Google OAuth is not configured. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET as server secrets.");
+    throw new Error("Google OAuth is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in Cloudflare secrets or your local .dev.vars file.");
   }
 
   const state = crypto.randomUUID();
@@ -537,8 +558,17 @@ export const placeOrder = createServerFn({ method: "POST" })
       });
     }
 
-    const delivery = subtotal >= 999 ? 0 : 60;
-    const totalAmount = subtotal + delivery;
+    const totals = validateCheckoutOrderInput(
+      pricedItems.map((item) => ({ slug: item.slug, price: item.price, qty: item.qty })),
+      {
+        totalAmount: data.totalAmount,
+        shippingAddress: data.shippingAddress,
+        shippingPostcode: data.shippingPostcode,
+        phone: data.phone,
+      },
+    );
+    const delivery = totals.delivery;
+    const totalAmount = totals.total;
     const userEmail = sessionUser.email;
 
     const orderId = `ZUP-${crypto.randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase()}`;
