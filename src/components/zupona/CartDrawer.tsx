@@ -80,10 +80,7 @@ export function CartDrawer() {
     }
 
     closeCart();
-    navigate({
-      to: "/checkout",
-      search: { slug: cartItems[0]?.product.slug ?? undefined },
-    });
+    navigate({ to: "/checkout", search: { slug: undefined } });
   };
 
   return (

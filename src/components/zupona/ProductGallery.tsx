@@ -1,10 +1,30 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 
-import { buildGallerySlides, type GallerySlide, mergeProductMediaItems } from "./product-gallery-utils";
+type GallerySlide = {
+  type: "image" | "video";
+  src: string;
+  alt: string;
+};
 
-export type { GallerySlide } from "./product-gallery-utils";
-export { mergeProductMediaItems } from "./product-gallery-utils";
+function buildGallerySlides(images: string[], alt: string, video?: string): GallerySlide[] {
+  const deduped = new Set<string>();
+  const slides: GallerySlide[] = [];
+
+  images.filter(Boolean).forEach((src, index) => {
+    if (deduped.has(src)) return;
+    deduped.add(src);
+    slides.push({ type: "image", src, alt: `${alt} — image ${index + 1}` });
+  });
+
+  const videoSrc = video?.trim();
+  if (videoSrc && !deduped.has(videoSrc)) {
+    slides.push({ type: "video", src: videoSrc, alt: `${alt} — product video` });
+    deduped.add(videoSrc);
+  }
+
+  return slides;
+}
 
 /**
  * A Zepto-like sequential product gallery that keeps the existing product page
@@ -99,7 +119,7 @@ export function ProductGallery({
                   type="button"
                   onClick={() => setZoomed(true)}
                   aria-label={`View ${slide.alt}`}
-                  className="block h-[260px] w-full cursor-zoom-in overflow-hidden rounded-xl bg-card sm:h-[420px]"
+                  className="flex min-h-[260px] w-full cursor-zoom-in items-center justify-center overflow-hidden rounded-xl bg-card sm:min-h-[420px]"
                 >
                   <img
                     src={slide.src}
@@ -108,7 +128,7 @@ export function ProductGallery({
                     height={640}
                     loading={index === 0 ? "eager" : "lazy"}
                     decoding="async"
-                    className="h-full w-full object-contain"
+                    className="max-h-[420px] max-w-full w-auto object-contain"
                   />
                 </button>
               )}

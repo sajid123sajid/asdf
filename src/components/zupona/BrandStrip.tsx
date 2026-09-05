@@ -17,7 +17,7 @@ export function BrandStrip() {
             <Link
               to="/search"
               search={{ q: b }}
-              className="block rounded-full border border-border bg-secondary/40 px-3 py-1.5 text-[11px] font-bold text-foreground transition-colors hover:border-gold hover:text-gold sm:px-4 sm:py-2 sm:text-sm"
+              className="block rounded-full border border-border bg-[#fffaf3] px-3 py-1.5 text-[11px] font-bold text-foreground transition-colors hover:border-primary hover:text-primary sm:px-4 sm:py-2 sm:text-sm"
             >
               {b}
             </Link>

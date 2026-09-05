@@ -1,10 +1,10 @@
 import { Link } from "@tanstack/react-router";
-import { Heart, Home, LayoutGrid, Tag, User } from "lucide-react";
+import { BadgePercent, Heart, Home, LayoutGrid, User } from "lucide-react";
 
 const items = [
   { label: "Home", icon: Home, to: "/" as const },
   { label: "Categories", icon: LayoutGrid, to: "/categories" as const },
-  { label: "Deals", icon: Tag, to: "/deals" as const },
+  { label: "Offers", icon: BadgePercent, to: "/deals" as const },
   { label: "Wishlist", icon: Heart, to: "/wishlist" as const },
   { label: "Account", icon: User, to: "/account" as const },
 ];
@@ -23,9 +23,9 @@ export function BottomNav() {
             <Link
               to={to}
               activeOptions={{ exact: to === "/" }}
-              activeProps={{ className: "text-gold font-semibold [&>span:first-child]:bg-gold/10" }}
+              activeProps={{ className: "text-primary font-semibold [&>span:first-child]:bg-primary/10" }}
               inactiveProps={{ className: "text-muted-foreground" }}
-              className="flex flex-col items-center gap-0.5 py-1.5 text-[11px] leading-none transition-colors hover:text-gold"
+              className="flex flex-col items-center gap-0.5 py-1.5 text-[11px] leading-none transition-colors hover:text-primary"
             >
               <span className="flex h-8 w-12 items-center justify-center rounded-full transition-colors">
                 <Icon className="h-5 w-5" />

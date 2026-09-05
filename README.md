@@ -77,6 +77,31 @@ Required env values for auth features:
 - `GOOGLE_REDIRECT_URI`
 - `ADMIN_EMAILS` (optional but used for admin access)
 
+### Enable Google login
+
+1. In [Google Cloud Console](https://console.cloud.google.com/), create or select a project,
+  configure the OAuth consent screen, and create an OAuth client with application type
+  **Web application**.
+2. Add these exact authorized redirect URIs to the OAuth client:
+  - Local: `http://localhost:5173/google-callback`
+  - Production: `https://zupona.com/google-callback`
+3. For local Cloudflare development, put the client ID, client secret, and local redirect URI
+  in `.dev.vars`, then run `npm run db:migrate:local` and `npm run dev:cf`.
+4. For production, store the credentials as Worker secrets. The redirect URI must exactly match
+  the production URI registered in Google:
+
+```sh
+wrangler secret put GOOGLE_CLIENT_ID
+wrangler secret put GOOGLE_CLIENT_SECRET
+wrangler secret put GOOGLE_REDIRECT_URI
+```
+
+Use `https://zupona.com/google-callback` as the value for `GOOGLE_REDIRECT_URI`. Keep
+`GOOGLE_CLIENT_SECRET` server-only; never prefix it with `VITE_` or commit `.dev.vars`.
+After setting the secrets, deploy the Worker and test the complete flow from `/login`:
+Google consent, callback, account creation/sign-in, session cookie, and redirect back to the
+original page.
+
 Required SSLCOMMERZ values for online payments:
 
 - `SSLCOMMERZ_STORE_ID` (Cloudflare secret)

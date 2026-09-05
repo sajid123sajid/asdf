@@ -18,6 +18,10 @@ import {
   Save,
   ChevronRight,
   ExternalLink,
+  Gift,
+  Headphones,
+  RotateCcw,
+  Settings,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -71,6 +75,7 @@ function AccountPage() {
 
   // Active Tab: "orders" | "profile"
   const [activeTab, setActiveTab] = useState<"orders" | "profile">("orders");
+  const [activeBanner, setActiveBanner] = useState(0);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -116,10 +121,138 @@ function AccountPage() {
     }
   };
 
+  const recentOrder = orders[0];
+  const quickAccess = [
+    { label: "Profile & Address", icon: MapPin, action: () => { setActiveTab("profile"); setIsEditingProfile(false); } },
+    { label: "Track Order", icon: Package, to: "/track-order" as const },
+    { label: "Wishlist", icon: Heart, to: "/wishlist" as const },
+    { label: "Help & Support", icon: Headphones, to: "/help" as const },
+    { label: "Returns & Refunds", icon: RotateCcw, to: "/help" as const },
+    { label: "Settings", icon: Settings, action: () => { setActiveTab("profile"); setIsEditingProfile(true); } },
+  ];
+  const banners = [
+    { eyebrow: "Exclusive offers for you", title: "Fresh deals every day", copy: "Save more on beauty, fashion and lifestyle picks.", icon: Gift },
+    { eyebrow: "Fast delivery", title: "Your next order, closer", copy: "Enjoy reliable delivery across Bangladesh.", icon: Truck },
+    { eyebrow: "Shop with confidence", title: "Authentic picks only", copy: "Discover trusted products with easy returns.", icon: ShieldCheck },
+  ];
+  const banner = banners[activeBanner] ?? banners[0]!;
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setActiveBanner((current) => (current + 1) % banners.length);
+    }, 4000);
+    return () => window.clearInterval(timer);
+  }, [banners.length]);
+
   return (
     <main className="mx-auto max-w-[1200px] px-3 pb-12 pt-4 md:px-4 md:pt-6">
       {user ? (
-        <div className="space-y-6">
+        <>
+          <div className="space-y-3 md:hidden">
+            <section className="rounded-2xl border border-border bg-card p-3 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gold/15 text-sm font-black text-gold">
+                    {(user.name || user.email).charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-black text-foreground">{user.name || user.email.split("@")[0]}</p>
+                    <p className="truncate text-[10px] text-muted-foreground">{user.email}</p>
+                  </div>
+                </div>
+                <span className="shrink-0 rounded-full bg-emerald-500/10 px-2 py-1 text-[9px] font-bold text-emerald-600">Verified</span>
+              </div>
+              <div className="mt-3 flex items-center gap-2">
+                <button type="button" onClick={() => { setActiveTab("profile"); setIsEditingProfile(true); }} className="inline-flex items-center gap-1 rounded-full border border-border px-2.5 py-1 text-[10px] font-semibold text-foreground">
+                  <Edit2 className="h-3 w-3" /> Edit Profile
+                </button>
+                <button type="button" onClick={handleLogout} className="inline-flex items-center gap-1 rounded-full border border-destructive/25 px-2.5 py-1 text-[10px] font-semibold text-destructive">
+                  <LogOut className="h-3 w-3" /> Sign Out
+                </button>
+              </div>
+            </section>
+
+            <section className="grid grid-cols-4 divide-x divide-border rounded-2xl border border-border bg-card py-3 shadow-sm">
+              {[
+                { label: "Orders", value: orders.length, icon: Package, color: "text-gold" },
+                { label: "Wishlist", value: wishlist.length, icon: Heart, color: "text-rose-500", to: "/wishlist" as const },
+                { label: "Cart", value: cartCount, icon: ShoppingCart, color: "text-amber-500", to: "/cart" as const },
+                { label: "Points", value: 0, icon: Gift, color: "text-violet-500" },
+              ].map(({ label, value, icon: Icon, color, to }) => to ? (
+                <Link key={label} to={to} className="flex min-w-0 flex-col items-center gap-1 text-center">
+                  <Icon className={`h-4 w-4 ${color}`} />
+                  <strong className="text-sm font-black text-foreground">{value}</strong>
+                  <span className="text-[9px] text-muted-foreground">{label}</span>
+                </Link>
+              ) : (
+                <div key={label} className="flex min-w-0 flex-col items-center gap-1 text-center">
+                  <Icon className={`h-4 w-4 ${color}`} />
+                  <strong className="text-sm font-black text-foreground">{value}</strong>
+                  <span className="text-[9px] text-muted-foreground">{label}</span>
+                </div>
+              ))}
+            </section>
+
+            <section className="rounded-2xl border border-border bg-card p-3 shadow-sm">
+              <div className="mb-2 flex items-center justify-between">
+                <h2 className="text-[11px] font-black text-foreground">My Recent Order</h2>
+                <button type="button" onClick={() => setActiveTab("orders")} className="text-[10px] font-bold text-gold">See All</button>
+              </div>
+              {recentOrder ? (
+                <div className="flex items-center justify-between gap-2 rounded-xl bg-secondary/45 p-2.5">
+                  <div className="min-w-0">
+                    <p className="truncate text-[10px] font-bold text-foreground">Order #{recentOrder.id}</p>
+                    <p className="mt-0.5 text-[9px] text-muted-foreground">{recentOrder.created_at ? new Date(recentOrder.created_at).toLocaleDateString("en-BD") : "Recently"}</p>
+                    <span className="mt-1 inline-flex rounded-full bg-gold/15 px-1.5 py-0.5 text-[8px] font-bold text-gold">{recentOrder.status || "Order confirmed"}</span>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] font-black text-foreground">{formatTk(recentOrder.total_amount)}</p>
+                    <Link to="/track-order" search={{ id: recentOrder.id }} className="mt-1 inline-flex items-center gap-0.5 text-[9px] font-bold text-gold">Track <ChevronRight className="h-3 w-3" /></Link>
+                  </div>
+                </div>
+              ) : <p className="rounded-xl bg-secondary/45 p-3 text-[10px] text-muted-foreground">No recent order yet.</p>}
+            </section>
+
+            <section className="rounded-2xl border border-border bg-card p-3 shadow-sm">
+              <h2 className="mb-2 text-[11px] font-black text-foreground">Quick Access</h2>
+              <div className="grid grid-cols-3 gap-2">
+                {quickAccess.map(({ label, icon: Icon, to, action }) => to ? (
+                  <Link key={label} to={to} className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl border border-border bg-background px-1 text-center text-[9px] font-semibold text-foreground">
+                    <Icon className="h-4 w-4 text-gold" />{label}
+                  </Link>
+                ) : (
+                  <button key={label} type="button" onClick={action} className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl border border-border bg-background px-1 text-center text-[9px] font-semibold text-foreground">
+                    <Icon className="h-4 w-4 text-gold" />{label}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="relative min-h-[112px] overflow-hidden rounded-2xl bg-[#fff1d8] p-3.5" aria-roledescription="carousel" aria-label="Zupona offers">
+              <div className="relative z-10 max-w-[62%]">
+                <p className="text-[9px] font-bold uppercase tracking-wide text-gold-deep">{banner.eyebrow}</p>
+                <p className="mt-1 text-sm font-black leading-tight text-foreground">{banner.title}</p>
+                <p className="mt-1 text-[10px] leading-snug text-foreground/75">{banner.copy}</p>
+                <Link to="/deals" className="mt-2 inline-flex rounded-full bg-gold px-3 py-1.5 text-[9px] font-bold text-primary-foreground">Shop Now</Link>
+              </div>
+              <banner.icon className="absolute -right-1 bottom-2 h-24 w-24 rotate-12 text-gold/50" />
+              <div className="absolute bottom-2 right-3 flex gap-1" role="tablist" aria-label="Offer slides">
+                {banners.map((item, index) => (
+                  <button
+                    key={item.title}
+                    type="button"
+                    role="tab"
+                    aria-selected={activeBanner === index}
+                    aria-label={`Show offer ${index + 1}`}
+                    onClick={() => setActiveBanner(index)}
+                    className={`h-1.5 rounded-full transition-all ${activeBanner === index ? "w-4 bg-gold-deep" : "w-1.5 bg-gold/40"}`}
+                  />
+                ))}
+              </div>
+            </section>
+          </div>
+
+          <div className="hidden space-y-6 md:block">
           <div className="relative overflow-hidden rounded-3xl border border-border bg-card p-5 shadow-sm md:p-6">
             <div className="absolute inset-y-0 right-0 hidden w-44 bg-gradient-to-l from-gold/8 to-transparent md:block" />
             <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -372,7 +505,8 @@ function AccountPage() {
               )}
             </section>
           )}
-        </div>
+          </div>
+        </>
       ) : (
         /* ================= Guest / Not Logged In State ================= */
         <div className="space-y-6">

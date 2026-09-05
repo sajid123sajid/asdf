@@ -8,7 +8,7 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { Header } from "@/components/zupona/Header";
@@ -81,7 +81,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Zupona — Trusted Online Shop in Bangladesh" },
+      { title: "Zupona" },
       { name: "description", content: "Shop premium beauty, fashion, watches, home and baby products at Zupona. Free delivery over Tk 999, 30-day returns and secure checkout." },
       { name: "author", content: "Zupona" },
       { property: "og:title", content: "Zupona — Trusted Online Shop in Bangladesh" },
@@ -91,13 +91,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:site", content: "@zupona" },
       { name: "twitter:title", content: "Zupona — Trusted Online Shop in Bangladesh" },
       { name: "twitter:description", content: "Shop premium beauty, fashion, watches, home and baby products at Zupona. Free delivery over Tk 999, 30-day returns and secure checkout." },
+      { name: "application-name", content: "Zupona" },
+      { name: "apple-mobile-web-app-title", content: "Zupona" },
     ],
     links: [
       {
         rel: "stylesheet",
         href: appCss,
       },
-      { rel: "icon", href: "/favicon.png", type: "image/png" },
+      { rel: "icon", href: "/favicon.png", type: "image/png", sizes: "192x192" },
+      { rel: "apple-touch-icon", href: "/favicon.png" },
     ],
   }),
   shellComponent: RootShell,
@@ -123,11 +126,17 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const [showInitialLoad, setShowInitialLoad] = useState(true);
   const isAdminRoute = pathname.startsWith("/admin");
   const isAuthRoute = pathname === "/login" || pathname === "/google-callback";
   const isCheckoutLikeRoute = pathname === "/cart" || pathname === "/checkout" || pathname.startsWith("/account");
   const showStoreHeader = shouldShowStoreHeader(pathname);
   const showMobileBottomGroup = !isAdminRoute && !isAuthRoute && !isCheckoutLikeRoute;
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setShowInitialLoad(false), 900);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -140,6 +149,21 @@ function RootComponent() {
         </div>
         {shouldShowCartDrawer(pathname) && <CartDrawer />}
         <Toaster />
+
+        {showInitialLoad && (
+          <div
+            className="pointer-events-none fixed inset-0 z-[999] bg-[#f3f3f3] transition-opacity duration-500 ease-out"
+            aria-live="polite"
+            aria-busy="true"
+          >
+            <div className="h-3 w-full bg-[#8ad9e8]" />
+            <div className="flex h-[calc(100%-0.75rem)] items-center justify-center">
+              <div className="select-none text-[clamp(3.1rem,10vw,8rem)] font-black tracking-[-0.1em] text-[#7e1ea3]">
+                zupona
+              </div>
+            </div>
+          </div>
+        )}
       </ShopProvider>
     </QueryClientProvider>
   );

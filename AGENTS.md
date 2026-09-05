@@ -15,3 +15,4 @@ This is the Zupona project. Keep changes focused, avoid unrelated refactors, and
 - Update the project docs when the auth flow, env variables, or deployment steps change.
 - Keep `README.md`, `wrangler.jsonc`, and `package.json` aligned with the actual runtime configuration.
 - Verify that `npm run build` succeeds after dependency or config changes.
+- After a change passes its focused validation and the production build, deploy the latest Worker before reporting the task complete.

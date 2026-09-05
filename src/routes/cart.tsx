@@ -106,7 +106,7 @@ function CartPage() {
                 <dd>{formatTk(cartTotal + delivery)}</dd>
               </div>
             </dl>
-            <button type="button" onClick={() => { if (!user) { navigate({ to: "/login", search: { returnTo: "/checkout" } }); return; } navigate({ to: "/checkout", search: { slug: cartItems[0]?.product.slug ?? undefined } }); }} className="mt-5 w-full rounded-full bg-gold px-4 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-gold-deep">
+            <button type="button" onClick={() => { if (!user) { navigate({ to: "/login", search: { returnTo: "/checkout" } }); return; } navigate({ to: "/checkout", search: { slug: undefined } }); }} className="mt-5 w-full rounded-full bg-gold px-4 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-gold-deep">
               {user ? "Proceed to Checkout" : "Login to Proceed"} · {formatTk(cartTotal + delivery)}
             </button>
             <p className="mt-2 text-center text-xs text-muted-foreground">Checkout calculates the final payable amount on the server.</p>

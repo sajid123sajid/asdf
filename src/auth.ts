@@ -339,14 +339,15 @@ export const getGoogleAuthUrl = createServerFn({ method: "GET" })
 
   const state = crypto.randomUUID();
   const { setCookie } = await getCookieHelpers();
+  const safeReturnTo = sanitizeAppReturnTo(data.returnTo);
   setCookie(GOOGLE_STATE_COOKIE, state, {
-    ...COOKIE_OPTIONS,
+    ...getCookieOptions(),
     httpOnly: true,
     sameSite: "lax",
   });
-  if (data.returnTo) {
-    setCookie(GOOGLE_RETURN_COOKIE, data.returnTo, {
-      ...COOKIE_OPTIONS,
+  if (safeReturnTo) {
+    setCookie(GOOGLE_RETURN_COOKIE, safeReturnTo, {
+      ...getCookieOptions(),
       httpOnly: true,
       sameSite: "lax",
     });
@@ -514,6 +515,8 @@ export const placeOrder = createServerFn({ method: "POST" })
       shippingPostcode: string;
       phone: string;
       paymentMethod?: string;
+      deliveryMethod?: string;
+      discount?: number;
     }) => data
   )
   .handler(async ({ data }): Promise<OrderRecord> => {
@@ -565,9 +568,10 @@ export const placeOrder = createServerFn({ method: "POST" })
         shippingAddress: data.shippingAddress,
         shippingPostcode: data.shippingPostcode,
         phone: data.phone,
+        deliveryMethod: data.deliveryMethod,
+        discount: data.discount,
       },
     );
-    const delivery = totals.delivery;
     const totalAmount = totals.total;
     const userEmail = sessionUser.email;
 
@@ -580,7 +584,7 @@ export const placeOrder = createServerFn({ method: "POST" })
       total_amount: totalAmount,
       shipping_address: data.shippingAddress.trim(),
       phone: data.phone.trim(),
-      payment_method: data.paymentMethod === "SSLCOMMERZ" ? "SSLCOMMERZ" : "Cash on Delivery",
+      payment_method: data.paymentMethod === "SSLCOMMERZ" ? "SSLCOMMERZ" : (data.paymentMethod || "Cash on Delivery"),
       status: data.paymentMethod === "SSLCOMMERZ" ? "PENDING_PAYMENT" : "Order confirmed",
     });
 
@@ -596,6 +600,8 @@ export const startOnlinePayment = createServerFn({ method: "POST" })
       shippingAddress: string;
       shippingPostcode: string;
       phone: string;
+      deliveryMethod?: string;
+      discount?: number;
     }) => data
   )
   .handler(async ({ data }) => {

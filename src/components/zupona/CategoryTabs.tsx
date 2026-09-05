@@ -11,14 +11,14 @@ export function CategoryTabs() {
   if (hideSecondaryNav) return null;
 
   return (
-    <nav aria-label="Shop categories" className="hidden border-b border-border/70 bg-card/95 backdrop-blur-sm md:block">
+    <nav aria-label="Shop categories" className="hidden border-b border-border/70 bg-[#f9f7f2] backdrop-blur-sm md:block">
       <div className="mx-auto max-w-[1200px] px-4">
         <ul className="flex items-stretch gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <li>
             <Link
               to="/categories"
-              className="flex items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 py-2.5 text-sm font-semibold text-foreground transition-colors hover:text-gold"
-              activeProps={{ className: "border-gold text-gold" }}
+              className="flex items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 py-2.5 text-sm font-semibold text-foreground transition-colors hover:text-primary"
+              activeProps={{ className: "border-primary text-primary" }}
             >
               <LayoutGrid className="h-4 w-4" />
               All
@@ -29,8 +29,8 @@ export function CategoryTabs() {
               <Link
                 to="/category/$slug"
                 params={{ slug: c.slug }}
-                className="flex items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 py-2.5 text-sm font-semibold text-foreground transition-colors hover:text-gold"
-                activeProps={{ className: "border-gold text-gold" }}
+                className="flex items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 py-2.5 text-sm font-semibold text-foreground transition-colors hover:text-primary"
+                activeProps={{ className: "border-primary text-primary" }}
               >
                 <img
                   src={c.image}
@@ -48,7 +48,7 @@ export function CategoryTabs() {
           <li>
             <Link
               to="/deals"
-              className="flex items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 py-2.5 text-sm font-semibold text-foreground transition-colors hover:text-gold"
+              className="flex items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 py-2.5 text-sm font-semibold text-foreground transition-colors hover:text-primary"
             >
               Offers
             </Link>
@@ -56,7 +56,7 @@ export function CategoryTabs() {
           <li>
             <Link
               to="/categories"
-              className="flex items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 py-2.5 text-sm font-semibold text-foreground transition-colors hover:text-gold"
+              className="flex items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 py-2.5 text-sm font-semibold text-foreground transition-colors hover:text-primary"
             >
               New Arrivals
             </Link>

@@ -1,9 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
-import { Eye, Heart, Minus, Plus, Star, Zap } from "lucide-react";
-import { useState } from "react";
+import { Heart, Minus, Plus, ShoppingCart, Star, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { formatSavings, formatTk, hasDiscount, type Product } from "./data";
-import { QuickView } from "./QuickView";
 import { useShop } from "./shop-store";
 
 /** Zepto-style product card: framed image, corner discount tag, delivery badge, outlined ADD pill. */
@@ -16,7 +14,6 @@ export function ProductCard({
 }) {
   const { addToCart, setQty, qtyOf, toggleWishlist, isWishlisted } = useShop();
   const navigate = useNavigate();
-  const [quickOpen, setQuickOpen] = useState(false);
   const wished = isWishlisted(product.slug);
   const qty = qtyOf(product.slug);
 
@@ -63,29 +60,14 @@ export function ProductCard({
           <Heart className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${wished ? "fill-gold" : ""}`} />
         </button>
 
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            setQuickOpen(true);
-          }}
-          aria-label={`Quick view ${product.name}`}
-          className="absolute bottom-1.5 right-1.5 z-10 flex items-center gap-1 rounded-full bg-card/90 px-2 py-1 text-[10px] font-bold text-foreground shadow-sm backdrop-blur transition-colors hover:text-gold sm:text-[11px]"
-        >
-          <Eye className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Quick view</span>
-        </button>
-
-
-
-        <div className="block aspect-square p-2 sm:p-3">
+        <div className="block aspect-[1.15] sm:aspect-square">
           <img
             src={product.image}
             alt={`${product.brand} ${product.name}`}
             loading="lazy"
             width={512}
             height={512}
-            className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-105"
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
         </div>
       </div>
@@ -127,7 +109,7 @@ export function ProductCard({
       </div>
 
       {/* ADD row */}
-      <div className="mt-auto flex items-center justify-end gap-1 pt-1.5">
+      <div className="mt-auto flex items-center gap-1 pt-1.5">
         {qty === 0 ? (
           <button
             type="button"
@@ -136,12 +118,13 @@ export function ProductCard({
               addToCart(product.slug);
             }}
             aria-label={`Add ${product.name} to cart`}
-            className="shrink-0 rounded-lg border border-gold bg-card px-3 py-1 text-[11px] font-extrabold uppercase tracking-wide text-gold transition-colors hover:bg-gold hover:text-primary-foreground active:scale-95 sm:px-4 sm:py-1.5 sm:text-xs"
+            className="flex min-h-9 w-full items-center justify-center gap-1 rounded-lg border border-primary bg-card px-3 py-2 text-[10px] font-extrabold uppercase tracking-wide text-primary transition-colors hover:bg-primary hover:text-primary-foreground active:scale-95 sm:min-h-10 sm:px-4 sm:text-xs"
           >
-            Add
+            <ShoppingCart className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+            Add To Cart
           </button>
         ) : (
-          <div className="flex shrink-0 items-center rounded-lg bg-gold text-primary-foreground">
+          <div className="flex w-full items-center justify-between rounded-lg bg-primary text-primary-foreground">
             <button
               type="button"
               onClick={(e) => {
@@ -169,7 +152,6 @@ export function ProductCard({
         )}
       </div>
     </article>
-    <QuickView product={product} open={quickOpen} onOpenChange={setQuickOpen} />
     </>
   );
 }

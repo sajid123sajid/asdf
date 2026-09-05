@@ -12,7 +12,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   plugins: [
     tanstackStart(),
-    tanstackRouter(),
+    tanstackRouter({
+      codeSplittingOptions: {
+        addHmr: false,
+      },
+    }),
     tailwindcss(),
     react(),
     tsconfigPaths(),
@@ -26,6 +30,9 @@ export default defineConfig({
   server: {
     host: "0.0.0.0",
     port: 5173,
+    watch: {
+      ignored: ["**/src/routeTree.gen.ts", "**/.tanstack/**"],
+    },
     hmr: {
       overlay: false,
     },
